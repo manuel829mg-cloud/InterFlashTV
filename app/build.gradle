@@ -1,0 +1,3 @@
+plugins { id 'com.android.application' }
+android { namespace 'do.interflash.tv'; compileSdk 35
+ defaultConfig { applicationId 'do.interflash.tv'; minSdk 23; targetSdk 35; versionCode 1; versionName '0.1' } }
