@@ -22,7 +22,8 @@ import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
  private WebView web;
- private boolean returnedToMenu = false;
+ private AlertDialog exitDialog;
+ private boolean checkingBack = false;
  private FrameLayout root;
  private View fullscreenView;
  private WebChromeClient.CustomViewCallback fullscreenCallback;
@@ -103,13 +104,25 @@ public class MainActivity extends Activity {
    }catch(Exception ignored){}finally{if(c!=null)c.disconnect();}
   }).start();
  }
+ private void confirmExit() {
+  if (isFinishing() || (exitDialog != null && exitDialog.isShowing())) return;
+  exitDialog = new AlertDialog.Builder(this)
+   .setTitle("Salir de Inter Flash TV")
+   .setMessage("¿Quieres salir de la aplicación?")
+   .setNegativeButton("Cancelar", (dialog, which) -> {})
+   .setPositiveButton("Salir", (dialog, which) -> finish())
+   .create();
+  exitDialog.setOnShowListener(dialog -> exitDialog.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus());
+  exitDialog.show();
+ }
  @Override public void onBackPressed() {
-  if (!returnedToMenu) {
-   if (fullscreenView != null) exitFullscreen();
-   web.evaluateJavascript("if(window.interFlashBack){window.interFlashBack()}else{var v=document.getElementById('player');if(v)v.classList.remove('tv-fullscreen');var list=document.getElementById('channelList');if(list)list.scrollIntoView();}", null);
-   returnedToMenu = true;
-  } else {
-   finish();
-  }
+  if (exitDialog != null && exitDialog.isShowing()) return;
+  if (fullscreenView != null) { exitFullscreen(); return; }
+  if (checkingBack) return;
+  checkingBack = true;
+  web.evaluateJavascript("(function(){var p=document.getElementById('player'),t=document.getElementById('teleantillasViewport');if((p&&p.classList.contains('tv-fullscreen'))||(t&&t.classList.contains('tv-fullscreen'))||document.fullscreenElement){if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen();if(window.interFlashBack)window.interFlashBack();return true;}return false;})()", value -> {
+   checkingBack = false;
+   if (!"true".equals(value)) confirmExit();
+  });
  }
 }
