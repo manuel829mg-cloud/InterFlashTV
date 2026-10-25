@@ -11,6 +11,7 @@ import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
  private WebView web;
+ private boolean returnedToMenu = false;
  private FrameLayout root;
  private View fullscreenView;
  private WebChromeClient.CustomViewCallback fullscreenCallback;
@@ -52,8 +53,12 @@ public class MainActivity extends Activity {
   web.loadUrl("https://inter-tv-prueba-production.up.railway.app/");
  }
  @Override public void onBackPressed() {
-  if (fullscreenView != null) exitFullscreen();
-  else if (web.canGoBack()) web.goBack();
-  else super.onBackPressed();
+  if (!returnedToMenu) {
+   if (fullscreenView != null) exitFullscreen();
+   web.evaluateJavascript("if(window.interFlashBack){window.interFlashBack()}else{var v=document.getElementById('player');if(v)v.classList.remove('tv-fullscreen');var list=document.getElementById('channelList');if(list)list.scrollIntoView();}", null);
+   returnedToMenu = true;
+  } else {
+   finish();
+  }
  }
 }
