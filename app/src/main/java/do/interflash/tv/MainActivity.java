@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
   new Thread(() -> {
    HttpURLConnection c = null;
    try {
-    c = (HttpURLConnection)new URL("https://api.github.com/repos/manuel829mg-cloud/InterFlashTV/releases/latest").openConnection();
+    c = (HttpURLConnection)new URL("https://api.github.com/repos/manuel829mg-cloud/InterFlashTV/releases?per_page=5").openConnection();
     c.setConnectTimeout(7000); c.setReadTimeout(7000);
     c.setRequestProperty("Accept","application/vnd.github+json");
     c.setRequestProperty("User-Agent","InterFlashTV-Android");
@@ -76,7 +76,9 @@ public class MainActivity extends Activity {
     InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream();
     byte[] buf=new byte[4096];int n;while((n=in.read(buf))!=-1&&out.size()<1000000)out.write(buf,0,n);
     in.close();
-    JSONObject release=new JSONObject(out.toString("UTF-8"));
+    org.json.JSONArray releases=new org.json.JSONArray(out.toString("UTF-8"));
+    if(releases.length()==0)return;
+    JSONObject release=releases.getJSONObject(0);
     String tag=release.optString("tag_name","");
     int latest=0;
     java.util.regex.Matcher m=java.util.regex.Pattern.compile("v(\\d+)$").matcher(tag);
