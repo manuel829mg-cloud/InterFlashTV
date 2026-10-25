@@ -83,7 +83,7 @@ public class MainActivity extends Activity {
     int latest=0;
     java.util.regex.Matcher m=java.util.regex.Pattern.compile("v(\\d+)$").matcher(tag);
     if(m.find())latest=Integer.parseInt(m.group(1));
-    if(latest<=BuildConfig.VERSION_CODE)return;
+    if(latest<=getPackageManager().getPackageInfo(getPackageName(),0).versionCode)return;
     org.json.JSONArray assets=release.optJSONArray("assets");
     if(assets==null)return;
     String download="";
