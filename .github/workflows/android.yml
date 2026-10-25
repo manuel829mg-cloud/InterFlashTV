@@ -31,8 +31,8 @@ jobs:
       - name: Publicar APK directamente
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: prueba-v2
-          name: Inter Flash TV — Versión 2 con actualizaciones
+          tag_name: prueba-v3
+          name: Inter Flash TV — Versión 3 con confirmación de salida
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
           prerelease: true
