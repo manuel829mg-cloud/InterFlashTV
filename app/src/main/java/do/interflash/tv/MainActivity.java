@@ -52,7 +52,7 @@ public class MainActivity extends Activity {
   web = new WebView(this);
   web.setWebViewClient(new WebViewClient() {
    @Override public void onPageFinished(WebView view, String url) {
-    view.evaluateJavascript("(function(){if(document.getElementById('interflash-tv-fit'))return;var s=document.createElement('style');s.id='interflash-tv-fit';s.textContent='video:fullscreen, video:-webkit-full-screen {width:100vw!important;height:100vh!important;object-fit:cover!important;}';document.head.appendChild(s);})();", null);
+    view.evaluateJavascript("(function(){if(document.getElementById('interflash-tv-fit'))return;var s=document.createElement('style');s.id='interflash-tv-fit';s.textContent='video:fullscreen, video:-webkit-full-screen {width:100vw!important;height:100vh!important;object-fit:cover!important;}#m3uImport,#m3ufile,.tv-channels>p.muted:not(#count){display:none!important}.tv-channels{padding:10px!important}.tv-channels>h2{font-size:20px!important;margin:0 0 8px!important}#searchChannel{box-sizing:border-box;width:100%!important;min-width:0!important;padding:8px!important;margin:0 0 6px!important;font-size:16px!important}#count{font-size:12px!important;margin:3px 0 6px!important}#channelList{gap:2px!important}#channelList button{box-sizing:border-box;min-height:36px!important;padding:6px 9px!important;margin:1px 0!important;font-size:16px!important;line-height:1.25!important;border-radius:6px!important;width:100%!important}#channelList button img{width:28px!important;height:24px!important;margin-right:6px!important}';document.head.appendChild(s);var heading=document.querySelector(\'.tv-channels>h2\');if(heading)heading.textContent=\'Canales\';})();", null);
    }
   });
   web.setWebChromeClient(chrome);
