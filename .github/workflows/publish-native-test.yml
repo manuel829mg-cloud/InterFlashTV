@@ -1,0 +1,48 @@
+name: Publish native Inter Flash TV test
+on:
+  push:
+    branches: [native-owntv-interflash]
+    paths: ['.github/workflows/publish-native-test.yml']
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: manuel829mg-cloud/InterFlashTV
+    steps:
+      - name: Download successful build
+        run: |
+          gh run download 40327977325 --name InterFlashTV-native-test --dir dist
+          mapfile -t files < <(find dist -name '*.apk' -type f)
+          test "${#files[@]}" -eq 1
+          mv "${files[0]}" InterFlashTV-native-v8.apk
+          sha256sum InterFlashTV-native-v8.apk > SHA256SUMS.txt
+      - name: Prepare corresponding source
+        run: |
+          curl --fail --location https://github.com/ahXN00/OwnTV/archive/8f47da68bf246b4ccbf9e53a53a81b4bf0620d2e.zip -o original.zip
+          unzip -q original.zip
+          mv OwnTV-* native-source
+          curl --fail --location https://raw.githubusercontent.com/manuel829mg-cloud/InterFlashTV/main/app/src/main/res/drawable-nodpi/inter_flash_logo_round.webp -o native-source/app/src/main/res/drawable/interflash_logo.webp
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root = Path("native-source")
+          p = root / "app/build.gradle.kts"
+          p.write_text(p.read_text().replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.nativeapp"'))
+          (root / "app/src/main/res/values/interflash.xml").write_text('<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Inter Flash TV</string></resources>')
+          p = root / "app/src/main/AndroidManifest.xml"
+          p.write_text(re.sub(r'android:(icon|roundIcon|banner)="[^"]+"', lambda m: 'android:' + m.group(1) + '="@drawable/interflash_logo"', p.read_text()))
+          p = root / "app/src/main/java/tv/own/owntv/OwnTVApp.kt"
+          p.write_text(p.read_text().replace('releaseRepo = "ahXN00/OwnTV"', 'releaseRepo = "manuel829mg-cloud/InterFlashTV"'))
+          p = root / "tools/i18n/safe_literals.txt"
+          p.write_text(p.read_text().replace('OwnTVApp.kt\tahXN00/OwnTV', 'OwnTVApp.kt\tmanuel829mg-cloud/InterFlashTV'))
+          PY
+          tar -czf InterFlashTV-native-v8-source.tar.gz native-source
+      - name: Publish test release
+        run: |
+          gh release create native-v8-test InterFlashTV-native-v8.apk SHA256SUMS.txt InterFlashTV-native-v8-source.tar.gz --target 3b8f61b1c485c4a76a519c9a1c1bf69435e6c3d7 --prerelease --title "Inter Flash TV native v8 - prueba" --notes "Base nativa de OwnTV con nombre y logo de Inter Flash. Compilacion correcta. Instalacion, lista y reproduccion pendientes de comprobar. Requiere Android 8 o superior. Se instala como una app separada. Codigo original y licencia GPLv3 conservados en el archivo de fuentes."
