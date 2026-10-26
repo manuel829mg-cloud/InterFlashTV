@@ -149,3 +149,55 @@ const text=await r.text();window.interflashDefaultCatalog=true;if(!window.import
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',ready,{once:true});else ready();
 })();</script></html>
+<style id="interflash-overlay-design">
+@media(min-width:621px){
+html body.tv-reference header{position:fixed!important;top:0;left:0;right:0;z-index:4;background:linear-gradient(#111019ed,transparent)!important;border:0;height:64px}
+html body.tv-reference main{padding:0!important;height:100vh!important}
+html body.tv-reference .tv-grid{display:block!important;height:100vh!important}
+html body.tv-reference .tv-player{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:0;background:#000}
+html body.tv-reference #player:not(.tv-fullscreen):not(:fullscreen),html body.tv-reference #teleantillasViewport:not(.tv-fullscreen){position:absolute!important;inset:0!important;width:100vw!important;height:100vh!important;aspect-ratio:auto!important;object-fit:contain!important;flex:none!important;border:0!important;outline:0!important;box-shadow:none!important}
+html body.tv-reference .tv-player>.player-category{position:absolute;bottom:50px;left:54%;z-index:1;background:#111019aa;border-radius:8px;padding:10px!important}
+html body.tv-reference .tv-player>#status{position:absolute;bottom:15px;left:54%;right:15px;z-index:1;background:#111019bb;border-radius:6px;padding:8px 12px;font-size:13px}
+html body.tv-reference .reference-categories{position:fixed;left:0;top:64px;bottom:0;width:78px;z-index:6;border:0;border-radius:0;background:#17131ee8;transition:width .15s}
+html body.tv-reference .reference-categories:focus-within,html body.tv-reference .reference-categories:hover{width:260px;background:#211928f5}
+html body.tv-reference .reference-categories h2{font-size:0;padding:6px;height:0;background:transparent}
+html body.tv-reference #categorySidebar button{height:64px;min-height:64px;background:transparent!important;border:0;position:relative;padding:10px 14px;justify-content:flex-start;gap:16px}
+html body.tv-reference #categorySidebar button::before{content:attr(data-icon);display:grid;place-items:center;flex:0 0 46px;height:44px;border-radius:14px;background:linear-gradient(145deg,#9567a8,#42345a);font-size:22px;color:white}
+html body.tv-reference #categorySidebar button span{display:none}
+html body.tv-reference .reference-categories:focus-within button span:first-child,html body.tv-reference .reference-categories:hover button span:first-child{display:block}
+html body.tv-reference #categorySidebar button[aria-current=true]::before{box-shadow:0 0 0 2px #ffcf33}
+html body.tv-reference .tv-channels{position:fixed;top:64px;bottom:0;left:78px;width:40vw;max-width:560px;z-index:3;border:0;border-radius:0;background:linear-gradient(90deg,#30263de8,#30263dc4 85%,#30263d77);padding:0 12px!important}
+html body.tv-reference .tv-channels>h2{display:none!important}
+html body.tv-reference #searchChannel{min-width:0;background:#1b1729c9!important;border-radius:9px!important;margin:6px 0!important;width:100%!important;box-sizing:border-box}
+html body.tv-reference #count{color:#d2c6dc}
+html body.tv-reference #channelList button{min-height:86px!important;padding:10px!important;border:2px solid transparent!important;border-radius:12px!important;margin:2px 0!important;background:transparent!important;gap:14px;outline:0!important}
+html body.tv-reference #channelList button:focus{border:2px solid white!important;outline:0!important;background:#ffffff18!important}
+html body.tv-reference #channelList button[aria-current=true]{background:#cdb8e328!important;color:#fff;box-shadow:inset 3px 0 #ffcf33!important}
+html body.tv-reference .channel-logo-box{flex:0 0 60px!important;width:60px!important;height:60px!important;border-radius:10px;background:#8e70905e}
+html body.tv-reference .channel-logo-box img{width:48px!important;height:48px!important;max-width:48px!important;max-height:48px!important}
+html body.tv-reference .channel-logo-fallback{width:44px;height:44px;background:transparent;font-size:17px}
+html body.tv-reference .channel-clean-name{font-size:16px!important;font-weight:600}
+html body.tv-reference .reference-number{font-size:11px;min-width:20px}
+html body.tv-reference.overlay-hidden header,html body.tv-reference.overlay-hidden .reference-categories,html body.tv-reference.overlay-hidden .tv-channels,html body.tv-reference.overlay-hidden .player-category{visibility:hidden;pointer-events:none}
+html body.tv-reference.overlay-hidden #status:empty{display:none!important}
+html body.tv-reference.overlay-hidden #status{left:20px;right:auto;max-width:70%}
+}
+</style>
+<script id="interflash-overlay-behavior">
+(function(){
+function wide(){return innerWidth>620}
+function activePlayer(){const p=document.getElementById('teleantillasViewport');return p&&p.style.display==='block'?p:document.getElementById('player')}
+let last=null;
+function show(){document.body.classList.remove('overlay-hidden');const b=last&&last.isConnected?last:document.querySelector('#channelList button[aria-current=true],#channelList button');if(b)b.focus({preventScroll:true})}
+function hide(){last=document.activeElement;document.body.classList.add('overlay-hidden');const p=activePlayer();if(p)p.focus({preventScroll:true})}
+function icons(){document.querySelectorAll('#categorySidebar button').forEach(function(b){const n=b.textContent.toLowerCase();b.dataset.icon=/deport|sport|futbol|nba|mlb|ufc/.test(n)?'⚽':/cine|pel[ií]cula|movie/.test(n)?'🎬':/infantil|kids|animation/.test(n)?'🧸':/m[uú]sica|music/.test(n)?'♫':/noticia|news/.test(n)?'◉':/serie/.test(n)?'▤':/relig/.test(n)?'✦':/todas/.test(n)?'▦':'📺';b.title=b.textContent;b.setAttribute('aria-label',b.textContent)})}
+document.addEventListener('DOMContentLoaded',function(){icons();const s=document.getElementById('categorySidebar');if(s)new MutationObserver(icons).observe(s,{childList:true});document.addEventListener('interflash-categories',icons)});
+window.addEventListener('keydown',function(e){if(!wide()||document.getElementById('playlistDialog')||document.querySelector('[role=dialog]'))return;const k=e.key,a=document.activeElement,hidden=document.body.classList.contains('overlay-hidden');if(['INPUT','TEXTAREA'].includes(a.tagName))return;
+if(hidden&&(['Enter',' ','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Backspace','BrowserBack'].includes(k))){e.preventDefault();e.stopImmediatePropagation();show();return}
+if(['Escape','Backspace','BrowserBack'].includes(k)&&!hidden){e.preventDefault();e.stopImmediatePropagation();hide();return}
+if((k==='Enter'||k===' ')&&a===activePlayer()){e.preventDefault();e.stopImmediatePropagation();hide();return}
+if((k==='Enter'||k===' ')&&a.closest('#channelList')&&a.getAttribute('aria-current')==='true'){e.preventDefault();e.stopImmediatePropagation();hide()}
+},true);
+window.addEventListener('click',function(e){if(!wide())return;if(e.target===activePlayer()){e.preventDefault();e.stopImmediatePropagation();document.body.classList.contains('overlay-hidden')?show():hide();return}const b=e.target.closest('#channelList button');if(b&&b.getAttribute('aria-current')==='true'){e.preventDefault();e.stopImmediatePropagation();hide()}},true);
+})();
+</script>
