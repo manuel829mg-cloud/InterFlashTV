@@ -42,6 +42,8 @@ jobs:
           p.write_text(s)
           p = Path("app/src/main/java/tv/own/owntv/OwnTVApp.kt")
           p.write_text(p.read_text().replace('releaseRepo = "ahXN00/OwnTV"', 'releaseRepo = "manuel829mg-cloud/InterFlashTV"'))
+          p = Path("tools/i18n/safe_literals.txt")
+          p.write_text(p.read_text().replace('OwnTVApp.kt\tahXN00/OwnTV', 'OwnTVApp.kt\tmanuel829mg-cloud/InterFlashTV'))
           PY
       - name: Compile native application
         working-directory: native
