@@ -1,0 +1,48 @@
+name: Native Inter Flash TV
+on:
+  push:
+    branches: [native-owntv-interflash]
+    paths: ['.github/workflows/native-interflash.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Fetch pinned OwnTV source
+        run: |
+          curl --fail --location --retry 3 https://github.com/ahXN00/OwnTV/archive/8f47da68bf246b4ccbf9e53a53a81b4bf0620d2e.zip -o source.zip
+          unzip -q source.zip
+          mv OwnTV-* native
+      - name: Apply Inter Flash identity
+        working-directory: native
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          assert 'applicationId = "tv.own.owntv"' in s
+          p.write_text(s.replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.nativeapp"'))
+          p = Path("app/src/main/res/values/interflash.xml")
+          p.write_text('<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Inter Flash TV</string></resources>')
+          PY
+      - name: Compile native application
+        working-directory: native
+        env:
+          VERSION_CODE: '8'
+          VERSION_NAME: '8.0-native-test'
+        run: bash gradlew :app:assembleStandardDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-native-test
+          path: native/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error
