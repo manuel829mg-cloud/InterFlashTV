@@ -21,6 +21,7 @@
   if(e.key==='Enter'||e.key===' '){e.preventDefault();document.activeElement.click()}
   if(['Escape','Backspace','BrowserBack'].includes(e.key)){e.preventDefault();p.finish(false)}
  },true);
+ window.confirmInterflashHttp=consent;
  function library(){
   if(window.mpegts)return Promise.resolve();
   return new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.min.js';script.onload=resolve;script.onerror=()=>reject(Error('No se pudo cargar el reproductor.'));document.head.appendChild(script)});
@@ -62,4 +63,26 @@
  };
  window.addEventListener('pagehide',()=>{sequence++;release()});
 })();
-</script></html>
+</script><script>(function(){
+const form=document.getElementById('m3uUrlForm'),button=document.getElementById('m3uLoadUrl'),input=document.getElementById('m3uUrl'),message=document.getElementById('m3uMessage'),details=document.getElementById('m3uImport');
+if(!form||!button||!message)return;
+button.insertAdjacentElement('afterend',message);details.style.setProperty('max-height','none','important');details.style.setProperty('overflow','visible','important');
+message.style.cssText='display:block!important;min-height:26px;margin:10px 5px;padding:8px;color:#fff;white-space:normal;overflow-wrap:anywhere;font-size:16px;line-height:1.4';
+message.setAttribute('aria-live','polite');
+let loading=false;
+function feedback(text,error){message.textContent=text;message.style.background=error?'#652c38':'#183850';message.scrollIntoView({block:'nearest'})}
+form.onsubmit=async function(event){
+event.preventDefault();if(loading)return;
+let url;try{let value=input.value.trim();if(!value)throw Error('empty');if(!/^https?:[/][/]/i.test(value))value='https://'+value;url=new URL(value);if(!['http:','https:'].includes(url.protocol))throw Error('scheme')}catch(e){feedback('Pega el enlace completo de tu lista antes de pulsar Cargar enlace.',true);input.focus();return}
+if(url.protocol==='http:'){if(!window.confirmInterflashHttp||!await window.confirmInterflashHttp(url.host)){feedback('Carga cancelada. No se ha cambiado tu lista.',false);return}}
+loading=true;button.disabled=true;button.textContent='Cargando lista…';button.setAttribute('aria-busy','true');feedback('Conectando con el proveedor. Espera unos segundos…',false);
+const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);
+try{
+const response=await fetch('/api/m3u-import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.href}),signal:controller.signal,credentials:'same-origin'});
+if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||'El proveedor no respondió correctamente.')}
+const text=await response.text();if(!window.importCustomM3U(text,'Lista por enlace'))throw Error(message.textContent||'La respuesta no contiene una lista válida.');
+document.getElementById('status').textContent='Lista cargada. Selecciona una categoría o un canal.';
+}catch(e){feedback(e.name==='AbortError'?'El proveedor tardó demasiado en responder. Tu lista anterior sigue guardada.':e.message+' Tu lista anterior sigue guardada.',true)}
+finally{clearTimeout(timer);loading=false;button.disabled=false;button.textContent='Cargar enlace';button.removeAttribute('aria-busy')}
+};
+})();</script></html>
