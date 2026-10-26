@@ -23,7 +23,7 @@ async function app(){
 }
 test('home navigation opens movies, searches, and requests selected playback safely',async()=>{
  const {dom,w,d,calls,errors}=await app();try{
- assert.equal(d.querySelector('#libraryHome').hidden,false);assert.equal(d.querySelectorAll('.reference-nav button[data-screen]').length,4);
+ assert.equal(d.querySelector('#libraryHome').hidden,false);assert.equal(w.getComputedStyle(d.querySelector('.tv-grid')).display,'none');assert.equal(d.querySelectorAll('.reference-nav button[data-screen]').length,4);
  w.interflashNavigate('movies');await tick();assert.equal(d.querySelector('#mediaLibrary').hidden,false);assert.equal(d.querySelector('.tv-grid').hidden,true);
  const card=d.querySelector('.media-card');assert.ok(card);assert.match(card.textContent,/Película <img src=x>/);assert.equal(card.querySelectorAll('img').length,0);
  card.click();d.querySelector('.media-info .library-button').click();await tick();assert.ok(calls.some(c=>c.view==='play'&&c.id==='17'));assert.equal(d.querySelector('#player').controls,true);
