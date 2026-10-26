@@ -122,4 +122,35 @@ try{const r=await fetch('/api/playlist-claim',{method:'POST',headers:{'Content-T
 catch(err){message.textContent=err.message;message.style.background='#652c38';message.scrollIntoView({block:'nearest'})}
 finally{claiming=false;button.disabled=false;button.textContent='Cargar enlace'}
 };
+})();</script><script>(function setup(){
+if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',setup,{once:true});return}
+const change=document.getElementById('changePlaylist');if(!change)return;
+let panel=null,timer=null,polling=false,controller=null;
+function close(){if(timer)clearTimeout(timer);timer=null;if(controller)controller.abort();controller=null;if(panel)panel.remove();panel=null;change.focus({preventScroll:true})}
+function show(title){close();panel=document.createElement('div');panel.id='tvTransferDialog';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');panel.style.cssText='position:fixed;inset:12vh 12vw;z-index:100020;padding:24px;background:#142b47;border:2px solid #40b9ff;border-radius:14px;box-shadow:0 0 0 100vmax #000c;overflow:auto';
+const h=document.createElement('h2');h.textContent=title;panel.appendChild(h);const exit=document.createElement('button');exit.type='button';exit.textContent='Cerrar';exit.onclick=close;panel.appendChild(exit);document.body.appendChild(panel);exit.focus();return panel}
+async function post(path,body){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(body),signal:controller?.signal});const data=await r.json();if(!r.ok)throw Error(data.error||'No se pudo conectar.');return data}
+const send=document.createElement('button'),receive=document.createElement('button');send.type=receive.type='button';send.textContent='Enviar lista al televisor';receive.textContent='Recibir desde PC';
+for(const b of [send,receive])b.style.cssText='display:block;flex-shrink:0;width:100%;margin:0;padding:10px;min-height:38px;background:#243d59;color:white;border-radius:0;font-size:13px;border-bottom:1px solid #65516b';
+change.after(send,receive);
+send.onclick=function(){
+const box=show('Enviar lista de la PC al televisor');controller=new AbortController();const note=document.createElement('p');note.textContent='En el televisor abre Recibir desde PC. Escribe aquí el código que aparece allí.';const input=document.createElement('input');input.placeholder='TV-XXXXXXXXXX';input.autocomplete='off';input.setAttribute('aria-label','Código del televisor');input.style.cssText='box-sizing:border-box;width:95%;min-width:0;text-transform:uppercase';const submit=document.createElement('button');submit.type='button';submit.textContent='Enviar lista';const status=document.createElement('p');status.setAttribute('role','status');box.append(note,input,submit,status);input.focus();
+submit.onclick=async function(){submit.disabled=true;status.textContent='Enviando lista al televisor…';try{const saved=JSON.parse(localStorage.getItem('interflash_custom_m3u')||'null');if(!saved||!window.interflashValidM3U(saved.text))throw Error('Primero carga la lista completa en esta PC.');await post('/api/tv-send',{code:input.value.trim().toUpperCase(),text:saved.text,name:saved.name});status.textContent='Lista enviada. El televisor la cargará automáticamente.'}catch(e){status.textContent=e.name==='AbortError'?'Envío cancelado.':e.message}finally{submit.disabled=false}};
+input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submit.click()}})
+};
+receive.onclick=async function(){
+const box=show('Recibir lista desde la PC');controller=new AbortController();const label=document.createElement('p');label.textContent='Preparando código…';box.appendChild(label);
+try{const data=await post('/api/tv-link',{});if(panel!==box)return;label.textContent=data.code;label.style.cssText='font-size:30px;font-weight:bold;letter-spacing:2px;color:#ffcf33';const note=document.createElement('p');note.textContent='En la PC pulsa Enviar lista al televisor y escribe este código. Vence en 10 minutos.';const status=document.createElement('p');status.setAttribute('role','status');status.textContent='Esperando la lista de la PC…';box.append(note,status);
+async function poll(){if(panel!==box)return;try{const result=await post('/api/tv-receive',{pollToken:data.pollToken});if(panel!==box)return;if(result.pending){timer=setTimeout(poll,2000);return}if(window.importCustomM3U(result.text,result.name)){close();document.getElementById('status').textContent='Lista recibida desde la PC. Selecciona un canal.'}else status.textContent='No se pudo importar la lista recibida.'}catch(e){if(panel===box&&e.name!=='AbortError')status.textContent=e.message}}
+timer=setTimeout(poll,1000);
+}catch(e){if(panel===box)label.textContent=e.message}
+};
+window.addEventListener('keydown',function(e){
+if(panel){const controls=Array.from(panel.querySelectorAll('button,input')).filter(el=>!el.disabled),index=controls.indexOf(document.activeElement);
+if(['ArrowUp','ArrowDown','Tab'].includes(e.key)){e.preventDefault();e.stopImmediatePropagation();const step=e.key==='ArrowUp'||e.shiftKey?-1:1;controls[(index+step+controls.length)%controls.length]?.focus();return}
+if(['Escape','BrowserBack'].includes(e.key)){e.preventDefault();e.stopImmediatePropagation();close();return}
+if(e.key==='Enter'&&document.activeElement.tagName==='BUTTON'){e.preventDefault();e.stopImmediatePropagation();document.activeElement.click();return}return}
+const active=document.activeElement,key=e.key,search=document.getElementById('searchChannel');if((active===change&&key==='ArrowDown')||(active===send&&(key==='ArrowUp'||key==='ArrowDown'))||(active===receive&&(key==='ArrowUp'||key==='ArrowDown'))||(active===search&&key==='ArrowUp')){
+e.preventDefault();e.stopImmediatePropagation();const target=active===change?send:active===send?(key==='ArrowUp'?change:receive):active===receive?(key==='ArrowUp'?send:search):receive;target.focus({preventScroll:true})}
+},true);
 })();</script></html>
