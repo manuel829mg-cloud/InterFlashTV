@@ -85,4 +85,30 @@ document.getElementById('status').textContent='Lista cargada. Selecciona una cat
 }catch(e){feedback(e.name==='AbortError'?'El proveedor tardó demasiado en responder. Tu lista anterior sigue guardada.':e.message+' Tu lista anterior sigue guardada.',true)}
 finally{clearTimeout(timer);loading=false;button.disabled=false;button.textContent='Cargar enlace';button.removeAttribute('aria-busy')}
 };
+})();</script><script>(function(){
+const savedImport=window.importCustomM3U;
+window.interflashValidM3U=function(text){
+if(typeof text!=='string'||text.length>5000000)return false;
+const lines=text.replace(/^\uFEFF/,'').trim().split(/\r?\n/).map(line=>line.trim());
+if(!/^#EXTM3U(?:\s|$)/i.test(lines[0]||''))return false;
+let entry=false;
+for(const line of lines){if(line.startsWith('#EXTINF:'))entry=true;else if(entry&&/^https?:[/][/]/i.test(line)){try{const u=new URL(line);if(!/\/(get|player_api)\.php$/i.test(u.pathname))return true}catch(e){}entry=false}}
+return false;
+};
+window.importCustomM3U=function(text,name){
+const message=document.getElementById('m3uMessage');
+if(!window.interflashValidM3U(text)){
+ const value=String(text||'').trim();
+ if(/^https?:[/][/][^\r\n]+$/i.test(value)){
+  document.getElementById('m3uUrl').value=value;
+  if(!document.getElementById('playlistDialog'))document.getElementById('changePlaylist').click();
+  message.textContent='Este es el enlace de descarga, no el contenido de una lista. Lo puse en el campo superior: pulsa Cargar enlace.';
+ }else message.textContent='No se recibió una lista M3U válida. No se ha cambiado la lista actual.';
+ message.style.display='block';message.style.background='#652c38';message.scrollIntoView({block:'nearest'});return false;
+}
+try{
+const old=localStorage.getItem('interflash_custom_m3u');if(old){const previous=JSON.parse(old);if(window.interflashValidM3U(previous.text)&&previous.text!==text&&old.length+text.length<3500000)localStorage.setItem('interflash_previous_m3u',old)}
+}catch(e){}
+return savedImport(text,name);
+};
 })();</script></html>
