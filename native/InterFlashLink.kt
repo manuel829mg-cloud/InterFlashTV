@@ -21,7 +21,7 @@ import tv.own.owntv.core.model.SourceType
 
 /** Each installation receives credentials only after its code is approved by the administrator. */
 object InterFlashLink : Application.ActivityLifecycleCallbacks {
-    private const val BASE = "https://interflash-app-production.up.railway.app"
+    private const val BASE = "https://interflash-isp-manager.up.railway.app"
     private var owner: Activity? = null
     private var job: Job? = null
     private var dialog: AlertDialog? = null
@@ -100,11 +100,11 @@ object InterFlashLink : Application.ActivityLifecycleCallbacks {
             val importer = koin.get<SourceImporter>()
             val profile = koin.get<SettingsRepository>().activeProfileId.first()
             if (profile > 0) importer.useProfile(profile)
-            else importer.createProfile(name="Inter Flash", avatarId=0, isKids=false, pin=null)
+            else importer.createProfile(name=activity.getString(R.string.if_link_title), avatarId=0, isKids=false, pin=null)
             if (payload.getString("kind") == "xtream") importer.xtream(
-                name="Inter Flash TV", server=payload.getString("server"),
+                name=activity.getString(R.string.if_link_title), server=payload.getString("server"),
                 username=payload.getString("username"), password=payload.getString("password"), makeDefault=true,
-            ) else importer.m3u(name="Inter Flash TV", url=payload.getString("url"), makeDefault=true)
+            ) else importer.m3u(name=activity.getString(R.string.if_link_title), url=payload.getString("url"), makeDefault=true)
             val result = importer.state.value as? SourceImporter.ImportState.Success ?: error("Import failed")
             sourceId = requireNotNull(result.source).id
             importer.finish()
