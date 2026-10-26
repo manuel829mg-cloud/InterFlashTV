@@ -57,6 +57,19 @@ jobs:
           anchor = 'Perf.stamp("koin-started")'
           assert anchor in s
           p.write_text(s.replace(anchor, anchor + '\n        InterFlashLink.install(this)'))
+          # Every new Kotlin literal is a protocol/preference key, URL or developer assertion.
+          # User-facing messages and source names are Android string resources.
+          import re
+          from collections import Counter
+          rel = "app/src/main/java/tv/own/owntv/InterFlashLink.kt"
+          counts = Counter(re.findall(r'"([^"\n]*)"', (Path("own-source") / rel).read_text()))
+          registry = Path("own-source/tools/i18n/safe_literals.txt")
+          additions = []
+          for text, count in sorted(counts.items()):
+              category = "empty" if not text else "assertion" if text == "Import failed" else "technical"
+              escaped = text if text else r"\0"
+              additions.append(f"{count}\t{category}\t{rel}\t{escaped}\n")
+          registry.write_text(registry.read_text() + "".join(additions))
           PY
       - name: Compile native application
         working-directory: own-source
