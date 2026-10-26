@@ -111,4 +111,15 @@ const old=localStorage.getItem('interflash_custom_m3u');if(old){const previous=J
 }catch(e){}
 return savedImport(text,name);
 };
+})();</script><script>(function(){
+const form=document.getElementById('m3uUrlForm'),input=document.getElementById('m3uUrl'),button=document.getElementById('m3uLoadUrl'),message=document.getElementById('m3uMessage');
+if(!form||!input)return;input.placeholder='Enlace M3U o código IF-XXXXXXXXXX';document.querySelector('label[for=m3uUrl]').textContent='Enlace de la lista M3U o código privado';
+const submit=form.onsubmit;let claiming=false;
+form.onsubmit=async function(e){
+const value=input.value.trim().toUpperCase();if(!/^IF-[A-Z2-9]{10}$/.test(value))return submit.call(form,e);
+e.preventDefault();if(claiming)return;claiming=true;button.disabled=true;button.textContent='Abriendo código…';message.textContent='Buscando tu lista privada…';message.style.background='#183850';
+try{const r=await fetch('/api/playlist-claim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:value}),credentials:'same-origin'});const data=await r.json();if(!r.ok)throw Error(data.error||'No se pudo abrir el código.');input.value=data.url;button.disabled=false;button.textContent='Cargar enlace';await submit.call(form,e)}
+catch(err){message.textContent=err.message;message.style.background='#652c38';message.scrollIntoView({block:'nearest'})}
+finally{claiming=false;button.disabled=false;button.textContent='Cargar enlace'}
+};
 })();</script></html>
