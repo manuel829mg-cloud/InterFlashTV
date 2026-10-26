@@ -120,7 +120,7 @@ public class MainActivity extends Activity {
   if (fullscreenView != null) { exitFullscreen(); return; }
   if (checkingBack) return;
   checkingBack = true;
-  web.evaluateJavascript("(function(){var p=document.getElementById('player'),t=document.getElementById('teleantillasViewport');if((p&&p.classList.contains('tv-fullscreen'))||(t&&t.classList.contains('tv-fullscreen'))||document.fullscreenElement){if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen();if(window.interFlashBack)window.interFlashBack();return true;}return false;})()", value -> {
+  web.evaluateJavascript("(function(){var p=document.getElementById('player'),t=document.getElementById('teleantillasViewport');if((p&&p.classList.contains('tv-fullscreen'))||(t&&t.classList.contains('tv-fullscreen'))||document.fullscreenElement){if(document.fullscreenElement&&document.exitFullscreen)document.exitFullscreen();if(window.interFlashBack)window.interFlashBack();return true;}var dialog=document.getElementById('playlistDialog')||document.getElementById('streamConsent');if(dialog){var cancel=dialog.querySelector('button');if(cancel)cancel.click();return true;}var drawer=document.querySelector('.reference-categories.categories-open');if(drawer){drawer.classList.remove('categories-open');var categories=document.getElementById('designCategories');if(categories){categories.setAttribute('aria-expanded','false');categories.focus();}return true;}var section=document.body.dataset.libraryScreen;if(section&&section!=='home'&&window.interflashNavigate){window.interflashNavigate('home');return true;}return false;})()", value -> {
    checkingBack = false;
    if (!"true".equals(value)) confirmExit();
   });
