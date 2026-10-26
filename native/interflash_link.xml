@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+<string name="if_link_title">Inter Flash TV</string>
+<string name="if_link_code">Código: %1$s\n\nEn la página de Inter Flash, abre Inter TV y vincula este código. Válido por 15 minutos.</string>
+<string name="if_link_later">Más tarde</string>
+<string name="if_link_importing">Cargando canales, películas y series. Puede tardar varios minutos.</string>
+<string name="if_link_retry">No se pudo conectar o importar la lista. Comprueba la configuración de Inter TV y vuelve a abrir la app.</string>
+<string name="if_link_done">Lista cargada desde Inter Flash.</string>
+</resources>
