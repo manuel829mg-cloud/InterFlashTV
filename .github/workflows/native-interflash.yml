@@ -26,6 +26,7 @@ jobs:
       - name: Apply Inter Flash identity
         working-directory: native
         run: |
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/manuel829mg-cloud/InterFlashTV/main/app/src/main/res/drawable-nodpi/inter_flash_logo_round.webp -o app/src/main/res/drawable/interflash_logo.webp
           python3 - <<'PY'
           from pathlib import Path
           p = Path("app/build.gradle.kts")
@@ -34,6 +35,13 @@ jobs:
           p.write_text(s.replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.nativeapp"'))
           p = Path("app/src/main/res/values/interflash.xml")
           p.write_text('<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Inter Flash TV</string></resources>')
+          p = Path("app/src/main/AndroidManifest.xml")
+          import re
+          s = p.read_text()
+          s = re.sub(r'android:(icon|roundIcon|banner)="[^"]+"', lambda m: 'android:' + m.group(1) + '="@drawable/interflash_logo"', s)
+          p.write_text(s)
+          p = Path("app/src/main/java/tv/own/owntv/OwnTVApp.kt")
+          p.write_text(p.read_text().replace('releaseRepo = "ahXN00/OwnTV"', 'releaseRepo = "manuel829mg-cloud/InterFlashTV"'))
           PY
       - name: Compile native application
         working-directory: native
