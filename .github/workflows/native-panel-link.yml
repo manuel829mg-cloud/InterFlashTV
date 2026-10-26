@@ -1,0 +1,81 @@
+name: Native Inter Flash TV panel integration
+on:
+  push:
+    branches: [feature/native-panel-link]
+    paths: ['.github/workflows/native-panel-link.yml', 'native/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Fetch pinned OwnTV source
+        run: |
+          curl --fail --location --retry 3 https://github.com/ahXN00/OwnTV/archive/8f47da68bf246b4ccbf9e53a53a81b4bf0620d2e.zip -o source.zip
+          unzip -q source.zip
+          mv OwnTV-* own-source
+      - name: Apply Inter Flash identity
+        working-directory: own-source
+        run: |
+          curl --fail --location --retry 3 https://raw.githubusercontent.com/manuel829mg-cloud/InterFlashTV/main/app/src/main/res/drawable-nodpi/inter_flash_logo_round.webp -o app/src/main/res/drawable/interflash_logo.webp
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          assert 'applicationId = "tv.own.owntv"' in s
+          p.write_text(s.replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.nativeapp"'))
+          p = Path("app/src/main/res/values/interflash.xml")
+          p.write_text('<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Inter Flash TV</string></resources>')
+          p = Path("app/src/main/AndroidManifest.xml")
+          import re
+          s = p.read_text()
+          s = re.sub(r'android:(icon|roundIcon|banner)="[^"]+"', lambda m: 'android:' + m.group(1) + '="@drawable/interflash_logo"', s)
+          p.write_text(s)
+          p = Path("app/src/main/java/tv/own/owntv/OwnTVApp.kt")
+          p.write_text(p.read_text().replace('releaseRepo = "ahXN00/OwnTV"', 'releaseRepo = "manuel829mg-cloud/InterFlashTV"'))
+          p = Path("tools/i18n/safe_literals.txt")
+          p.write_text(p.read_text().replace('OwnTVApp.kt\tahXN00/OwnTV', 'OwnTVApp.kt\tmanuel829mg-cloud/InterFlashTV'))
+          PY
+      - name: Add integrated panel connection
+        run: |
+          cp native/InterFlashLink.kt own-source/app/src/main/java/tv/own/owntv/InterFlashLink.kt
+          cp native/interflash_link.xml own-source/app/src/main/res/values/interflash_link.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("own-source/app/src/main/java/tv/own/owntv/OwnTVApp.kt")
+          s = p.read_text()
+          anchor = 'Perf.stamp("koin-started")'
+          assert anchor in s
+          p.write_text(s.replace(anchor, anchor + '\n        InterFlashLink.install(this)'))
+          PY
+      - name: Compile native application
+        working-directory: own-source
+        env:
+          VERSION_CODE: '9'
+          VERSION_NAME: '9.0-panel-test'
+        run: bash gradlew :app:assembleStandardDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-native-panel-test
+          path: own-source/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error
+
+      - name: Publish APK and corresponding source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: manuel829mg-cloud/InterFlashTV
+        run: |
+          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v9.apk
+          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v9-source.tar.gz own-source
+          sha256sum InterFlashTV-native-v9.apk > SHA256SUMS.txt
+          gh release create native-v9-panel-test InterFlashTV-native-v9.apk InterFlashTV-native-v9-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v9 - panel integrado" --notes "App nativa de prueba con vinculacion por codigo desde Inter Flash > Inter TV. Android 8 o posterior. Esta compilacion de prueba puede requerir desinstalar la v8 por cambio de firma. Compilacion no equivale a verificar reproduccion en TV. Fuente correspondiente y licencia original incluidas."
