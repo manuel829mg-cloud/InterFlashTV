@@ -97,13 +97,40 @@ export async function handleRelay(req){
 
 async function downloadM3U(raw,signal,redirects=0,allowHttp=raw.startsWith("http:")){const url=new URL(raw);if(url.protocol==="http:"&&!allowHttp)throw Error("El proveedor intenta redirigir a HTTP. No se ha enviado la clave por esa conexión.");if(!["http:","https:"].includes(url.protocol)||url.username||url.password||"localhost"===url.hostname)throw Error("Enlace no permitido.");const addresses=await lookup(url.hostname,{family:4,all:!0});if(!addresses.length||addresses.some(a=>!function(address){const p=address.split(".").map(Number);return 4===p.length&&p.every(n=>Number.isInteger(n)&&n>=0&&n<=255)&&![0,10,127].includes(p[0])&&!(169===p[0]&&254===p[1])&&!(172===p[0]&&p[1]>=16&&p[1]<=31)&&!(192===p[0]&&168===p[1])&&!(100===p[0]&&p[1]>=64&&p[1]<=127)&&!(198===p[0]&&[18,19].includes(p[1]))&&p[0]<224}(a.address)))throw Error("El enlace debe apuntar a un servidor público.");const address=addresses[0].address,result=await new Promise((resolve,reject)=>{const request=("https:"===url.protocol?httpsRequest:httpRequest)(url,{signal:signal,headers:{"User-Agent":"InterFlashTV/1.0",Accept:"application/x-mpegURL, audio/mpegurl, text/plain, */*"},lookup:(_host,options,callback)=>options&&options.all?callback(null,[{address:address,family:4}]):callback(null,address,4)},response=>{if(response.statusCode>=300&&response.statusCode<400)return response.resume(),void resolve({redirect:response.headers.location});if(200!==response.statusCode)return response.resume(),void reject(Error(401===response.statusCode||403===response.statusCode?"El proveedor rechazó el enlace. Revisa el usuario, la clave o la vigencia de la lista.":"El proveedor respondió con error "+response.statusCode+"."));const chunks=[];let size=0;response.on("data",chunk=>{size+=chunk.length,size>5e6?response.destroy(Error("La lista supera el límite de 5 MB.")):chunks.push(chunk)}),response.on("error",reject),response.on("end",()=>resolve({text:Buffer.concat(chunks).toString("utf8")}))});request.on("error",reject),request.end()});if(result.redirect){if(redirects>=3)throw Error("Demasiadas redirecciones.");return downloadM3U(new URL(result.redirect,url).href,signal,redirects+1,allowHttp)}return result.text}
 
-const PAGE_URL='https://raw.githubusercontent.com/manuel829mg-cloud/InterFlashTV/3d521c57070e459f69b7b6c21d9492557e6b8dfb/web/index.html';
+const PAGE_URL='https://raw.githubusercontent.com/manuel829mg-cloud/InterFlashTV/32a3a58ba4a65fc0fb1ac03f7871bd2fce1a3d25/web/index.html';
 let pagePromise;
 function loadPage(){
  if(!pagePromise)pagePromise=fetch(PAGE_URL,{signal:AbortSignal.timeout(15000)}).then(async r=>{if(!r.ok)throw Error('Página no disponible');return r.text()}).catch(e=>{pagePromise=null;throw e});
  return pagePromise;
 }
+
+const playlistLinks=new Map(),playlistClaims=new Map();
+async function handlePlaylistCode(req){
+const path=new URL(req.url).pathname;if(!['/api/playlist-link','/api/playlist-claim'].includes(path))return null;
+const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer'};
+if(req.method!=='POST'||req.headers.get('origin')!==APP_ORIGIN)return Response.json({error:'Solicitud no permitida.'},{status:403,headers});
+for(const [key,item] of playlistLinks)if(item.expires<Date.now())playlistLinks.delete(key);
+for(const [key,item] of playlistClaims)if(item.expires<Date.now())playlistClaims.delete(key);
+const ip=req.headers.get('x-real-ip')||req.headers.get('x-forwarded-for')||'unknown';
+const rate=playlistClaims.get(ip)||{attempts:0,expires:Date.now()+60000};rate.attempts++;playlistClaims.set(ip,rate);
+if(rate.attempts>10)return Response.json({error:'Espera un minuto antes de volver a intentar.'},{status:429,headers});
+try{
+const raw=await req.text();if(raw.length>10000)throw Error();const body=JSON.parse(raw);
+if(path==='/api/playlist-link'){
+ const url=new URL(body.url);if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.href.length>8192)throw Error();
+ if(playlistLinks.size>=100)return Response.json({error:'Inténtalo más tarde.'},{status:429,headers});
+ const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let code;do{code='IF-'+Array.from(crypto.getRandomValues(new Uint8Array(10)),n=>alphabet[n%alphabet.length]).join('')}while(playlistLinks.has(code));
+ playlistLinks.set(code,{url:url.href,expires:Date.now()+10*60000});
+ return Response.json({code,expiresIn:600},{headers});
+}
+const code=String(body.code||'').trim().toUpperCase(),item=playlistLinks.get(code);
+if(!item)return Response.json({error:'Código incorrecto, usado o vencido. Solicita uno nuevo.'},{status:404,headers});
+playlistLinks.delete(code);return Response.json({url:item.url},{headers});
+}catch(e){return Response.json({error:'Datos no válidos.'},{status:400,headers})}
+}
+
 Bun.serve({port:Number(Bun.env.PORT||3000),async fetch(req){
+ const codeResponse=await handlePlaylistCode(req);if(codeResponse)return codeResponse;
  const relay=await handleRelay(req);if(relay)return relay;
  const path=new URL(req.url).pathname;
  if(path==='/api/m3u-import'){
