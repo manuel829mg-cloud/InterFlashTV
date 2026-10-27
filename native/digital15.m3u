@@ -1,0 +1,3 @@
+#EXTM3U
+#EXTINF:-1 tvg-id="Digital15.do" tvg-name="Digital 15" group-title="Prueba Digital 15",Digital 15
+https://72.251.5.171:8443/live/digital15cast_1080p/playlist.m3u8

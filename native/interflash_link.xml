@@ -6,4 +6,5 @@
 <string name="if_link_importing">Cargando canales, películas y series. Puede tardar varios minutos.</string>
 <string name="if_link_retry">No se pudo conectar o importar la lista. Comprueba la configuración de Inter TV y vuelve a abrir la app.</string>
 <string name="if_link_done">Lista cargada desde Inter Flash.</string>
+<string name="if_digital15_folder">Prueba Digital 15</string>
 </resources>

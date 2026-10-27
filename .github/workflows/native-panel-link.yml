@@ -68,6 +68,8 @@ jobs:
         run: |
           cp native/InterFlashLink.kt own-source/app/src/main/java/tv/own/owntv/InterFlashLink.kt
           cp native/interflash_link.xml own-source/app/src/main/res/values/interflash_link.xml
+          mkdir -p own-source/app/src/main/res/raw
+          cp native/digital15.m3u own-source/app/src/main/res/raw/if_digital15.m3u
           python3 - <<'PY'
           from pathlib import Path
           p = Path("own-source/app/src/main/java/tv/own/owntv/OwnTVApp.kt")
@@ -104,12 +106,12 @@ jobs:
       - name: Compile native application
         working-directory: own-source
         env:
-          VERSION_CODE: '11'
-          VERSION_NAME: '11.0-low-live-latency'
+          VERSION_CODE: '12'
+          VERSION_NAME: '12.0-digital15-folder'
         run: bash gradlew -Powntv.corePath=../own-core :app:assembleStandardDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-native-fast-live
+          name: InterFlashTV-native-digital15-folder
           path: own-source/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
 
@@ -118,7 +120,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: manuel829mg-cloud/InterFlashTV
         run: |
-          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v11.apk
-          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v11-source.tar.gz own-source
-          sha256sum InterFlashTV-native-v11.apk > SHA256SUMS.txt
-          gh release create native-v11-panel-test InterFlashTV-native-v11.apk InterFlashTV-native-v11-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v11 - canales más rápidos" --notes "OwnTV nativa con identidad Inter Flash. Ajusta inicialmente la latencia de TV en vivo a baja para abrir canales con menos espera; puede causar más pausas según el proveedor y la conexión. Conserva el cambio del botón de pausa central oculto mientras un canal está reproduciendo. Android 8 o posterior. Incluye las fuentes y licencias."
+          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v12.apk
+          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v12-source.tar.gz own-source
+          sha256sum InterFlashTV-native-v12.apk > SHA256SUMS.txt
+          gh release create native-v12-panel-test InterFlashTV-native-v12.apk InterFlashTV-native-v12-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v12 - carpeta Digital 15" --notes "Añade Digital 15 en una fuente y categoría separadas, Prueba Digital 15, sin reemplazar el proveedor ni películas y series. El enlace suministrado tiene un certificado HTTPS que no coincide con la IP: reproducción no verificada en TV. OwnTV nativa con identidad Inter Flash. Ajusta inicialmente la latencia de TV en vivo a baja para abrir canales con menos espera; puede causar más pausas según el proveedor y la conexión. Conserva el cambio del botón de pausa central oculto mientras un canal está reproduciendo. Android 8 o posterior. Incluye las fuentes y licencias."

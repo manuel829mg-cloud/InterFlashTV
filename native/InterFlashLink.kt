@@ -85,7 +85,13 @@ object InterFlashLink : Application.ActivityLifecycleCallbacks {
         check(status == 200 && data != null)
         val payload = requireNotNull(data)
         val revision = payload.getInt("revision")
-        if (prefs.getInt("revision", -1) == revision) return
+        val folderAdded = ensureDigital15Folder(activity)
+        if (prefs.getInt("revision", -1) == revision) {
+            if (folderAdded) withContext(Dispatchers.Main) {
+                if (!activity.isFinishing) activity.recreate()
+            }
+            return
+        }
         withContext(Dispatchers.Main) {
             dialog?.dismiss()
             if (!activity.isFinishing) dialog = AlertDialog.Builder(activity)
@@ -123,6 +129,7 @@ object InterFlashLink : Application.ActivityLifecycleCallbacks {
             sourceId = updated.id
         }
         prefs.edit().putLong("source_id", sourceId).putInt("revision", revision).commit()
+        ensureDigital15Folder(activity)
         withContext(Dispatchers.Main) {
             dialog?.dismiss(); dialog = null
             if (!activity.isFinishing) {
@@ -130,6 +137,35 @@ object InterFlashLink : Application.ActivityLifecycleCallbacks {
                 activity.recreate()
             }
         }
+    }
+
+
+    /** Adds a separate source/category without replacing the panel's provider or its VOD. */
+    private suspend fun ensureDigital15Folder(activity: Activity): Boolean {
+        val koin = GlobalContext.get()
+        val repository = koin.get<SourceRepository>()
+        val prefs = activity.getSharedPreferences("interflash-link", 0)
+        val profile = koin.get<SettingsRepository>().activeProfileId.first()
+        if (profile <= 0) return false
+        val key = "digital15_source_" + profile
+        val existing = prefs.getLong(key, -1)
+        if (existing > 0 && repository.getById(existing) != null) return false
+        val file = java.io.File(activity.filesDir, "interflash-digital15.m3u")
+        activity.resources.openRawResource(R.raw.if_digital15).use { input ->
+            file.outputStream().use { output -> input.copyTo(output) }
+        }
+        val importer = koin.get<SourceImporter>()
+        importer.useProfile(profile)
+        importer.m3u(
+            name = activity.getString(R.string.if_digital15_folder),
+            url = file.absolutePath,
+            makeDefault = false,
+        )
+        val result = importer.state.value as? SourceImporter.ImportState.Success ?: error("Import failed")
+        val sourceId = requireNotNull(result.source).id
+        importer.finish()
+        prefs.edit().putLong(key, sourceId).commit()
+        return true
     }
 
     override fun onActivityDestroyed(activity: Activity) {
