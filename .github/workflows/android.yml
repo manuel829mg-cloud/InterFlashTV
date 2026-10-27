@@ -31,8 +31,8 @@ jobs:
       - name: Publicar APK directamente
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: prueba-v10
-          name: Inter Flash TV — Versión 10 con carpeta Dominicano en Android
+          tag_name: prueba-v11
+          name: Inter Flash TV — Versión 11 sin controles de pausa en pantalla completa
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
           prerelease: true
