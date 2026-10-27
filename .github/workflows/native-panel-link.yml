@@ -71,11 +71,23 @@ jobs:
               additions.append(f"{count}\t{category}\t{rel}\t{escaped}\n")
           registry.write_text(registry.read_text() + "".join(additions))
           PY
+      - name: Hide pause control on live playback
+        working-directory: own-source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt")
+          s = p.read_text()
+          old = '            CircleButton(if (isPlaying) OwnTVIcon.PAUSE else OwnTVIcon.PLAY, size = 64, primary = true, modifier = Modifier.focusRequester(playFocus)) { player.togglePlayPause() }'
+          new = '            if (!isLive || !isPlaying) CircleButton(if (isPlaying) OwnTVIcon.PAUSE else OwnTVIcon.PLAY, size = 64, primary = true, modifier = Modifier.focusRequester(playFocus)) { player.togglePlayPause() }'
+          assert old in s, "OwnTV center play/pause control not found"
+          p.write_text(s.replace(old, new, 1))
+          PY
       - name: Compile native application
         working-directory: own-source
         env:
-          VERSION_CODE: '9'
-          VERSION_NAME: '9.0-panel-test'
+          VERSION_CODE: '10'
+          VERSION_NAME: '10.0-hide-live-pause'
         run: bash gradlew :app:assembleStandardDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
@@ -88,7 +100,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: manuel829mg-cloud/InterFlashTV
         run: |
-          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v9.apk
-          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v9-source.tar.gz own-source
-          sha256sum InterFlashTV-native-v9.apk > SHA256SUMS.txt
-          gh release create native-v9-panel-test InterFlashTV-native-v9.apk InterFlashTV-native-v9-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v9 - panel integrado" --notes "App nativa de prueba con vinculacion por codigo desde Inter Flash > Inter TV. Android 8 o posterior. Esta compilacion de prueba puede requerir desinstalar la v8 por cambio de firma. Compilacion no equivale a verificar reproduccion en TV. Fuente correspondiente y licencia original incluidas."
+          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v10.apk
+          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v10-source.tar.gz own-source
+          sha256sum InterFlashTV-native-v10.apk > SHA256SUMS.txt
+          gh release create native-v10-panel-test InterFlashTV-native-v10.apk InterFlashTV-native-v10-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v10 - controles de reproducción" --notes "App nativa OwnTV con identidad Inter Flash. En canales en directo, el botón central de pausa se oculta mientras el canal está reproduciendo y vuelve a aparecer si la reproducción se pausa. Android 8 o posterior. La compilación debe instalarse y comprobarse en la TV. Incluye fuentes correspondientes y licencia original."
