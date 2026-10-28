@@ -2,6 +2,8 @@ name: Compilar APK
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 jobs:
   apk:
@@ -28,7 +30,8 @@ jobs:
           name: InterFlashTV-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publicar APK directamente
+      - name: Publicar APK directamente (solo rama principal)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: prueba-v12
