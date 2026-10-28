@@ -12,4 +12,5 @@
   <string name="if_tv_sync_success">Inter Flash TV: lista de canales actualizada.</string>
   <string name="if_tv_sync_failed">Inter Flash TV: no se pudo importar la lista. Reintentando.</string>
   <string name="if_tv_revoked">Este televisor ha sido desvinculado. Los canales de Inter Flash TV se han desactivado.</string>
+  <string name="if_tv_payment_expired">La suscripción mensual de Inter Flash TV ha vencido. Contacta con el administrador para confirmar el pago.</string>
 </resources>
