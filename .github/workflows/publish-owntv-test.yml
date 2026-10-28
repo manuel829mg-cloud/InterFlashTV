@@ -14,24 +14,24 @@ jobs:
       - name: Wait for branded OwnTV build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run watch 40698012555 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
+        run: gh run watch 40747477044 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
       - name: Download the successful test APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 40698012555 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
+          gh run download 40747477044 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
           APK=$(find dist -type f -name '*.apk' | head -n 1)
           test -n "$APK" && test -s "$APK"
           unzip -t "$APK" >/dev/null
-          cp "$APK" InterFlashTV-OwnTV-VINCULACION-PRUEBA.apk
+          cp "$APK" InterFlashTV-OwnTV-M3U-DIAGNOSTICO.apk
       - name: Publish test-only prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create owntv-interflash-vinculacion-prueba-20261028 InterFlashTV-OwnTV-VINCULACION-PRUEBA.apk \
+          gh release create owntv-interflash-m3u-diagnostico-20261028 InterFlashTV-OwnTV-M3U-DIAGNOSTICO.apk \
             --repo manuel829mg-cloud/InterFlashTV \
             --target feature/owntv-interflash-build \
             --title "Inter Flash TV - OwnTV (prueba)" \
-            --notes "Versión de prueba con código de vinculación y cliente de sincronización Inter Flash TV. Requiere que el módulo /inter-tv del panel esté desplegado y configurado; no se ha validado en televisor real. La suspensión del servicio necesita comprobación adicional. Código original OwnTV bajo GNU GPL v3: https://github.com/ahXN00/OwnTV" \
+            --notes "Versión de diagnóstico que muestra el estado de importación M3U en el televisor, con código de vinculación y cliente de sincronización Inter Flash TV. Requiere que el módulo /inter-tv del panel esté desplegado y configurado; no se ha validado en televisor real. La suspensión del servicio necesita comprobación adicional. Código original OwnTV bajo GNU GPL v3: https://github.com/ahXN00/OwnTV" \
             --prerelease --latest=false
