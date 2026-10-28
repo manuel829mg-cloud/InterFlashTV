@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
  private FrameLayout root;
  private View fullscreenView;
  private WebChromeClient.CustomViewCallback fullscreenCallback;
- private static final String PANEL_ROOT = "https://interflash-app-production.up.railway.app";
+ private static final String PANEL_ROOT = "https://interflash-isp-manager.up.railway.app";
  private final Handler panelHandler = new Handler(Looper.getMainLooper());
  private final ExecutorService panelExecutor = Executors.newSingleThreadExecutor();
  private final AtomicBoolean panelBusy = new AtomicBoolean(false);
