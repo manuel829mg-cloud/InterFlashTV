@@ -1,6 +1,7 @@
 package tv.own.owntv.interflash
 
 import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.app.AlertDialog
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CancellationException
@@ -16,7 +17,7 @@ import tv.own.owntv.core.database.entity.SourceEntity
  * no WebView, no duplicate player, no ISP customer/router/billing actions.
  */
 object InterFlashTvAutoSync {
-    fun start(activity: Activity, profiles: ProfileDao, sources: SourceRepository) {
+    fun start(activity: ComponentActivity, profiles: ProfileDao, sources: SourceRepository) {
         val prefs = activity.getSharedPreferences("interflash_tv_panel_sync", Activity.MODE_PRIVATE)
         val client = InterFlashTvPanelClient(activity)
         activity.lifecycleScope.launch {
