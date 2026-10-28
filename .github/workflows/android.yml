@@ -41,7 +41,7 @@ jobs:
           prerelease: true
 
       - name: Publicar APK de prueba para Downloader
-        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/tv-subscription-access-review'
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref == 'refs/heads/fix/tv-subscription-access-review')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: interflashtv-firetv-prueba-20261028
