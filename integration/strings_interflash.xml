@@ -5,4 +5,6 @@
   <string name="if_tv_panel_error">El panel TV respondió con error (%1$d).</string>
   <string name="if_tv_https_only">La dirección recibida del panel debe utilizar HTTPS.</string>
   <string name="if_tv_response_too_large">Respuesta del panel demasiado grande.</string>
+  <string name="if_tv_pair_title">Vincular Inter Flash TV</string>
+  <string name="if_tv_pair_instructions">Entra en el panel Inter Flash TV y aprueba el televisor con este código: %1$s</string>
 </resources>
