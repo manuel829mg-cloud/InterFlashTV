@@ -1,6 +1,8 @@
 name: Compilar APK
 on:
   push:
+    branches: [main, fix/tv-subscription-access-review]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 jobs:
@@ -28,11 +30,23 @@ jobs:
           name: InterFlashTV-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publicar APK directamente
+      - name: Publicar APK directamente (solo rama principal)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: prueba-v12
           name: Inter Flash TV Nueva — sincronización con la plataforma
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
+          prerelease: true
+
+      - name: Publicar APK de prueba para Downloader
+        if: (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'push' && github.ref == 'refs/heads/fix/tv-subscription-access-review')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: interflashtv-firetv-nueva-web-20261028
+          name: Inter Flash TV - APK de prueba para Fire TV
+          body: "APK de prueba, no es versión final. La vinculación, cobros y suspensión requieren validación antes de su uso comercial."
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: false
           prerelease: true

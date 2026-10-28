@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
  private FrameLayout root;
  private View fullscreenView;
  private WebChromeClient.CustomViewCallback fullscreenCallback;
- private static final String PANEL_ROOT = "https://interflash-app-production.up.railway.app";
+ private static final String PANEL_ROOT = "https://interflash-isp-manager.up.railway.app";
  private final Handler panelHandler = new Handler(Looper.getMainLooper());
  private final ExecutorService panelExecutor = Executors.newSingleThreadExecutor();
  private final AtomicBoolean panelBusy = new AtomicBoolean(false);
@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
  private boolean linkDialogDismissed = false;
  private boolean pageReady = false;
  private int panelRevision = -1;
+ private volatile boolean tvSuspended = false;
  private final Runnable panelPoll = new Runnable() {
   @Override public void run() { syncPanel(); panelHandler.postDelayed(this, 8000); }
  };
@@ -80,6 +81,7 @@ public class MainActivity extends Activity {
     view.evaluateJavascript("(function(){if(document.getElementById('interflash-tv-fit'))return;var s=document.createElement('style');s.id='interflash-tv-fit';s.textContent='video:fullscreen, video:-webkit-full-screen {width:100vw!important;height:100vh!important;object-fit:cover!important;}video::-webkit-media-controls,video::-webkit-media-controls-enclosure,video::-webkit-media-controls-overlay-play-button,video::-webkit-media-controls-start-playback-button,video::-internal-media-controls-overlay-cast-button{display:none!important;opacity:0!important;visibility:hidden!important;pointer-events:none!important}#m3uImport,#m3ufile,.tv-channels>p.muted:not(#count){display:none!important}.tv-channels{padding:10px!important}.tv-channels>h2{font-size:20px!important;margin:0 0 8px!important}#searchChannel{box-sizing:border-box;width:100%!important;min-width:0!important;padding:8px!important;margin:0 0 6px!important;font-size:16px!important}#count{font-size:12px!important;margin:3px 0 6px!important}#channelList{gap:2px!important}#channelList button{box-sizing:border-box;min-height:36px!important;padding:6px 9px!important;margin:1px 0!important;font-size:16px!important;line-height:1.25!important;border-radius:6px!important;width:100%!important}#channelList button img{width:28px!important;height:24px!important;margin-right:6px!important}';document.head.appendChild(s);var heading=document.querySelector(\'.tv-channels>h2\');if(heading)heading.textContent=\'Canales\';})();", null);
     view.evaluateJavascript("(function(){function clean(v){if(!v||v.tagName!=='VIDEO')return;v.controls=false;v.removeAttribute('controls');v.setAttribute('playsinline','');v.setAttribute('controlslist','nodownload noremoteplayback noplaybackrate')}document.querySelectorAll('video').forEach(clean);new MutationObserver(function(ms){ms.forEach(function(m){if(m.type==='attributes')clean(m.target);m.addedNodes.forEach(function(n){if(n.nodeType===1){clean(n);if(n.querySelectorAll)n.querySelectorAll('video').forEach(clean)}})})}).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['controls']});document.addEventListener('click',function(e){var v=e.target.closest&&e.target.closest('video');if(v&&(document.fullscreenElement||v.classList.contains('tv-fullscreen'))){e.preventDefault();e.stopImmediatePropagation()}},true)})();", null);
     view.evaluateJavascript("(function(){\nif(window.__interflashNativeDominicano)return;\nwindow.__interflashNativeDominicano=true;\nvar category=null,custom=false,token='__if_dominicano__';\nfunction normalize(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim()}\nfunction isDominican(name){\n var n=normalize(name);\n return n.indexOf('digital 15')>=0||n.indexOf('teleantilla')>=0||/\\bcanal 5\\b/.test(n)||/\\bcanal 11\\b/.test(n)||/\\btelesistema\\b/.test(n)\n}\nfunction syncOption(){\n category=document.getElementById('category');\n if(!category)return;\n if(!Array.from(category.options).some(function(o){return o.value===token})){\n  category.add(new Option('Dominicano',token));\n  document.dispatchEvent(new Event('interflash-categories'));\n }\n}\nfunction update(){\n syncOption();\n var remote=document.getElementById('categoryRemote');\n if(custom){\n  var list=document.getElementById('channelList'),count=0;\n  if(list)Array.from(list.querySelectorAll('button')).forEach(function(b){\n   var show=isDominican(b.dataset.channelName||b.textContent);\n   b.hidden=!show;\n   if(show){b.style.display='block';count++}else b.style.display='none';\n  });\n  var status=document.getElementById('count');\n  if(status)status.textContent=count+' canales dominicanos';\n  if(remote)remote.textContent='Dominicano';\n  var menu=document.getElementById('categoryRemoteMenu');\n  if(menu)Array.from(menu.querySelectorAll('button')).forEach(function(b){\n   if(b.textContent.trim()==='Dominicano'){b.dataset.selected='true';b.setAttribute('aria-current','true')}\n   else if(b.dataset.category===''){b.removeAttribute('data-selected');b.setAttribute('aria-current','false')}\n  });\n }\n}\nfunction install(){\n syncOption();\n if(!category||category.dataset.ifDominicanoHandler)return;\n category.dataset.ifDominicanoHandler='1';\n category.addEventListener('change',function(ev){\n  if(category.value===token){\n   ev.preventDefault();ev.stopImmediatePropagation();custom=true;category.value='';\n   category.dispatchEvent(new Event('change',{bubbles:true}));\n   requestAnimationFrame(update);\n  }else if(custom){custom=false;requestAnimationFrame(update)}\n },true);\n new MutationObserver(function(){syncOption();requestAnimationFrame(update)}).observe(category,{childList:true});\n var list=document.getElementById('channelList');\n if(list)new MutationObserver(function(){requestAnimationFrame(update)}).observe(list,{childList:true});\n document.addEventListener('interflash-categories',function(){syncOption();requestAnimationFrame(update)});\n document.addEventListener('input',function(ev){if(ev.target&&ev.target.id==='searchChannel')requestAnimationFrame(update)},true);\n requestAnimationFrame(update);\n}\nif(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();\n})();", null);
+    if (tvSuspended) { tvSuspended = false; setTvSuspended(true); }
     pageReady = true;
     panelHandler.removeCallbacks(panelPoll);
     panelHandler.post(panelPoll);
@@ -128,6 +130,10 @@ public class MainActivity extends Activity {
 
     int[] configStatus = new int[1];
     JSONObject config = requestJson("/api/tv-native/config", "GET", panelToken, null, configStatus);
+    if (configStatus[0] == 402) {
+     runOnUiThread(() -> setTvSuspended(true));
+     return;
+    }
     if (configStatus[0] == 409) {
      long now = System.currentTimeMillis();
      if (now - getSharedPreferences("interflash_tv", MODE_PRIVATE).getLong("no_playlist_notice", 0) > 90000) {
@@ -137,6 +143,7 @@ public class MainActivity extends Activity {
      return;
     }
     if (configStatus[0] != 200) throw new IOException("No se pudo consultar la lista del panel.");
+    if (tvSuspended) runOnUiThread(() -> setTvSuspended(false));
     int revision = config.optInt("revision", -1);
     if (revision < 0 || revision == panelRevision) return;
     String kind = config.optString("kind", "");
@@ -169,6 +176,19 @@ public class MainActivity extends Activity {
     panelBusy.set(false);
    }
   });
+ }
+
+ private void setTvSuspended(boolean suspended) {
+  if (tvSuspended == suspended) return;
+  tvSuspended = suspended;
+  if (suspended) {
+   exitFullscreen();
+   String js = "(function(){document.querySelectorAll('video,audio').forEach(function(v){try{v.pause();v.removeAttribute('src');v.querySelectorAll('source').forEach(function(s){s.removeAttribute('src')});v.load()}catch(e){}});var o=document.getElementById('if-tv-suspended');if(!o){o=document.createElement('div');o.id='if-tv-suspended';o.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;text-align:center;background:#08111e;color:#fff;font:bold 28px sans-serif;padding:24px';document.body.appendChild(o)}o.textContent='Servicio suspendido por falta de pago';})()";
+   web.evaluateJavascript(js, null);
+  } else {
+   web.evaluateJavascript("(function(){var o=document.getElementById('if-tv-suspended');if(o)o.remove()})()", null);
+   panelRevision = -1; // Force a fresh playlist on successful renewal.
+  }
  }
 
  private JSONObject requestJson(String path, String method, String bearer, JSONObject body, int[] statusOut) throws Exception {
