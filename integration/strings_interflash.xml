@@ -7,4 +7,8 @@
   <string name="if_tv_response_too_large">Respuesta del panel demasiado grande.</string>
   <string name="if_tv_pair_title">Vincular Inter Flash TV</string>
   <string name="if_tv_pair_instructions">Entra en el panel Inter Flash TV y aprueba el televisor con este código: %1$s</string>
+  <string name="if_tv_missing_profile">Primero crea un perfil en la aplicación para recibir los canales.</string>
+  <string name="if_tv_sync_start">Inter Flash TV: importando canales…</string>
+  <string name="if_tv_sync_success">Inter Flash TV: lista de canales actualizada.</string>
+  <string name="if_tv_sync_failed">Inter Flash TV: no se pudo importar la lista. Reintentando.</string>
 </resources>
