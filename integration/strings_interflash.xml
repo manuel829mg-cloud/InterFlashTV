@@ -11,4 +11,5 @@
   <string name="if_tv_sync_start">Inter Flash TV: importando canales…</string>
   <string name="if_tv_sync_success">Inter Flash TV: lista de canales actualizada.</string>
   <string name="if_tv_sync_failed">Inter Flash TV: no se pudo importar la lista. Reintentando.</string>
+  <string name="if_tv_revoked">Este televisor ha sido desvinculado. Los canales de Inter Flash TV se han desactivado.</string>
 </resources>
