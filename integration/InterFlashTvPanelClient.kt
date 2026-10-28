@@ -1,0 +1,106 @@
+package tv.own.owntv.interflash
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.security.SecureRandom
+
+/**
+ * Inter Flash TV-only panel integration for OwnTV. Never controls ISP clients, routers,
+ * invoices or WhatsApp. Endpoint contract: isp-manager-new/isp_tv_native.py.
+ *
+ * Important: an approved device alone is not a streaming authorization when billing is
+ * enabled; downstream playback must stop on HTTP 402. Do not store credentials in logs.
+ */
+class InterFlashTvPanelClient(
+    private val context: Context,
+    private val panel: String = "https://interflash-isp-manager.up.railway.app",
+) {
+    private val preferences = context.getSharedPreferences("interflash_tv_pairing", Context.MODE_PRIVATE)
+    private val deviceToken: String by lazy {
+        val existing = preferences.getString("token", null)
+        if (existing?.matches(Regex("[0-9a-f]{64}")) == true) existing
+        else {
+            val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
+            bytes.joinToString("") { "%02x".format(it.toInt() and 0xff) }.also {
+                preferences.edit().putString("token", it).apply()
+            }
+        }
+    }
+
+    data class Pairing(val code: String, val approved: Boolean)
+
+    sealed interface TvConfig {
+        data class Ready(val revision: Long, val name: String, val source: Source) : TvConfig
+        data object PendingApproval : TvConfig
+        data object NoSource : TvConfig
+        data object Suspended : TvConfig
+    }
+
+    sealed interface Source {
+        data class M3u(val url: String) : Source
+        data class Xtream(val server: String, val username: String, val password: String) : Source
+    }
+
+    suspend fun register(name: String = "Inter Flash TV"): Pairing = withContext(Dispatchers.IO) {
+        val data = JSONObject().put("token", deviceToken).put("name", name)
+        val (status, json) = call("/api/tv-native/register", "POST", data, false)
+        if (status != 200) throw IOException("No fue posible solicitar el código de vinculación ($status)")
+        Pairing(json.getString("code"), json.optBoolean("approved"))
+    }
+
+    suspend fun config(): TvConfig = withContext(Dispatchers.IO) {
+        val (status, json) = call("/api/tv-native/config", "GET", null, true)
+        when (status) {
+            401, 403 -> TvConfig.PendingApproval
+            402 -> TvConfig.Suspended
+            409 -> TvConfig.NoSource
+            200 -> {
+                val source = when (json.optString("kind")) {
+                    "m3u" -> Source.M3u(approvedUrl(json.getString("url")))
+                    "xtream" -> Source.Xtream(
+                        approvedUrl(json.getString("server")),
+                        json.getString("username"), json.getString("password")
+                    )
+                    else -> throw IOException("Formato de lista TV no compatible")
+                }
+                TvConfig.Ready(json.getLong("revision"), json.optString("name", "Inter Flash TV"), source)
+            }
+            else -> throw IOException("El panel TV respondió con error ($status)")
+        }
+    }
+
+    private fun approvedUrl(raw: String): String {
+        val parsed = URL(raw)
+        if (parsed.protocol != "https" || parsed.host.isNullOrBlank() || parsed.userInfo != null)
+            throw IOException("La URL recibida por el panel debe usar HTTPS")
+        return raw
+    }
+
+    private fun call(path: String, method: String, body: JSONObject?, authenticated: Boolean): Pair<Int, JSONObject> {
+        val connection = URL(panel + path).openConnection() as HttpURLConnection
+        return try {
+            connection.requestMethod = method
+            connection.connectTimeout = 12_000
+            connection.readTimeout = 12_000
+            connection.setRequestProperty("Accept", "application/json")
+            if (authenticated) connection.setRequestProperty("Authorization", "Bearer $deviceToken")
+            if (body != null) {
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json")
+                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
+            }
+            val code = connection.responseCode
+            val input = if (code in 200..299) connection.inputStream else connection.errorStream
+            val bytes = input?.use { it.readNBytes(16_385) } ?: byteArrayOf()
+            if (bytes.size > 16_384) throw IOException("Respuesta del panel demasiado grande")
+            Pair(code, runCatching { JSONObject(String(bytes, Charsets.UTF_8)) }.getOrDefault(JSONObject()))
+        } finally {
+            connection.disconnect()
+        }
+    }
+}
