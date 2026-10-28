@@ -94,7 +94,7 @@ public class MainActivity extends Activity {
   settings.setMediaPlaybackRequiresUserGesture(false);
   root.addView(web, new FrameLayout.LayoutParams(-1,-1));
   setContentView(root);
-  web.loadUrl("https://inter-tv-prueba-production.up.railway.app/");
+  web.loadUrl("https://interflash-tv-nueva-web-production.up.railway.app/");
   startPanelLink();
   checkForUpdates();
  }
