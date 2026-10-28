@@ -3,6 +3,8 @@ package tv.own.owntv.interflash
 import android.app.Activity
 import androidx.activity.ComponentActivity
 import android.app.AlertDialog
+import android.util.Log
+import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -23,6 +25,13 @@ object InterFlashTvAutoSync {
         activity.lifecycleScope.launch {
             var pairingDialog: AlertDialog? = null
             var lastCode: String? = null
+            var lastDiagnostic: String? = null
+            fun tellOnce(message: String) {
+                if (lastDiagnostic != message) {
+                    lastDiagnostic = message
+                    Toast.makeText(activity, message, Toast.LENGTH_LONG).show()
+                }
+            }
             while (!activity.isFinishing && !activity.isDestroyed) {
                 try {
                     val pairing = client.register()
@@ -46,6 +55,7 @@ object InterFlashTvAutoSync {
                             is InterFlashTvPanelClient.TvConfig.Ready -> {
                                 val all = profiles.getAllOnce()
                                 val profileId = all.firstOrNull()?.id
+                                if (profileId == null) tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_missing_profile))
                                 if (profileId != null && prefs.getLong("revision", -1) != cfg.revision) {
                                     val existingId = prefs.getLong("sourceId", -1)
                                     val old = if (existingId > 0) sources.getById(existingId) else null
@@ -62,9 +72,16 @@ object InterFlashTvAutoSync {
                                             } else sources.addXtreamSource(profileId, cfg.name, src.server, src.username, src.password)
                                         }
                                     }
+                                    prefs.edit().putLong("sourceId", changed.id).apply()
+                                    tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_start))
                                     val result = sources.sync(changed, onProgress = {})
                                     if (result is tv.own.owntv.core.sync.SyncResult.Success) {
                                         prefs.edit().putLong("revision", cfg.revision).putLong("sourceId", changed.id).apply()
+                                        tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_success))
+                                    }
+                                    else {
+                                        Log.w("InterFlashTV", "Sync returned failure: " + result.javaClass.simpleName)
+                                        tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_failed))
                                     }
                                 }
                             }
@@ -78,8 +95,9 @@ object InterFlashTvAutoSync {
                 } catch (cancel: CancellationException) {
                     pairingDialog?.dismiss()
                     throw cancel
-                } catch (_: Exception) {
-                    // Temporary network failures must not block normal OwnTV navigation.
+                } catch (e: Exception) {
+                    Log.e("InterFlashTV", "TV sync: " + e.javaClass.simpleName, e)
+                    tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_failed))
                 }
                 delay(15_000)
             }
