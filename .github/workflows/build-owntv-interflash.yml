@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Fetch OwnTV source
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
+      - name: Fetch matching OwnTV Core source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
       - name: Apply Inter Flash TV package and name
         working-directory: owntv
         shell: bash
@@ -47,7 +49,7 @@ jobs:
           VERSION_CODE: 99999
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assembleStandardDebug --no-daemon --stacktrace
+          ./gradlew :app:assembleStandardDebug -Powntv.corePath=$GITHUB_WORKSPACE/owntv-core --no-daemon --stacktrace
           ls -l app/build/outputs/apk/standard/debug/*.apk
       - uses: actions/upload-artifact@v4
         with:
