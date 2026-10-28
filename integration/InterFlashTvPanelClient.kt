@@ -49,7 +49,7 @@ class InterFlashTvPanelClient(
     suspend fun register(name: String = "Inter Flash TV"): Pairing = withContext(Dispatchers.IO) {
         val data = JSONObject().put("token", deviceToken).put("name", name)
         val (status, json) = call("/api/tv-native/register", "POST", data, false)
-        if (status != 200) throw IOException("No fue posible solicitar el código de vinculación ($status)")
+        if (status != 200) throw IOException(context.getString(tv.own.owntv.R.string.if_tv_pair_error, status))
         Pairing(json.getString("code"), json.optBoolean("approved"))
     }
 
@@ -66,18 +66,18 @@ class InterFlashTvPanelClient(
                         approvedUrl(json.getString("server")),
                         json.getString("username"), json.getString("password")
                     )
-                    else -> throw IOException("Formato de lista TV no compatible")
+                    else -> throw IOException(context.getString(tv.own.owntv.R.string.if_tv_source_unsupported))
                 }
                 TvConfig.Ready(json.getLong("revision"), json.optString("name", "Inter Flash TV"), source)
             }
-            else -> throw IOException("El panel TV respondió con error ($status)")
+            else -> throw IOException(context.getString(tv.own.owntv.R.string.if_tv_panel_error, status))
         }
     }
 
     private fun approvedUrl(raw: String): String {
         val parsed = URL(raw)
         if (parsed.protocol != "https" || parsed.host.isNullOrBlank() || parsed.userInfo != null)
-            throw IOException("La URL recibida por el panel debe usar HTTPS")
+            throw IOException(context.getString(tv.own.owntv.R.string.if_tv_https_only))
         return raw
     }
 
@@ -106,7 +106,7 @@ class InterFlashTvPanelClient(
                 }
                 output.toByteArray()
             } ?: byteArrayOf()
-            if (bytes.size > 16_384) throw IOException("Respuesta del panel demasiado grande")
+            if (bytes.size > 16_384) throw IOException(context.getString(tv.own.owntv.R.string.if_tv_response_too_large))
             Pair(code, runCatching { JSONObject(String(bytes, Charsets.UTF_8)) }.getOrDefault(JSONObject()))
         } finally {
             connection.disconnect()
