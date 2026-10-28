@@ -48,7 +48,7 @@ jobs:
           main=activity.read_text()
           marker='super.onCreate(savedInstanceState)'
           assert main.count(marker)==1, 'OwnTV lifecycle changed; review entrypoint'
-          main=main.replace(marker, marker+'\n        tv.own.owntv.interflash.InterFlashTvAutoSync.start(this, get<tv.own.owntv.core.database.dao.ProfileDao>(), get<tv.own.owntv.core.repository.SourceRepository>())', 1)
+          main=main.replace(marker, marker+'\n        tv.own.owntv.interflash.InterFlashTvAutoSync.start(this, get<tv.own.owntv.core.database.dao.ProfileDao>(), get<tv.own.owntv.core.repository.SourceRepository>(), player)', 1)
           activity.write_text(main)
           PY
       - name: Apply approved Inter Flash logo and banner
