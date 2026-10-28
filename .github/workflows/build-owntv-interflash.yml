@@ -1,0 +1,52 @@
+name: Build Inter Flash TV from OwnTV (isolated test)
+on:
+  push:
+    branches: [feature/owntv-interflash-build]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Fetch OwnTV source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
+      - name: Apply Inter Flash TV package and name
+        working-directory: owntv
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle=Path("app/build.gradle.kts")
+          data=gradle.read_text()
+          old='applicationId = "tv.own.owntv"'
+          assert old in data, "OwnTV app id changed; inspect source before building"
+          gradle.write_text(data.replace(old,'applicationId = "do.interflash.tv"',1))
+          manifest=Path("app/src/main/AndroidManifest.xml")
+          txt=manifest.read_text()
+          import re
+          txt,n=re.subn(r'android:label="[^"]+"', 'android:label="Inter Flash TV"',txt,count=1)
+          assert n==1, "Main Android label not found"
+          manifest.write_text(txt)
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build ARM / Fire TV test APK
+        working-directory: owntv
+        env:
+          VERSION_NAME: 99.99.99
+          VERSION_CODE: 99999
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleStandardDebug --no-daemon --stacktrace
+          ls -l app/build/outputs/apk/standard/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-FireTV-TEST
+          path: owntv/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error
