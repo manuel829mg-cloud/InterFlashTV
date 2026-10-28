@@ -1,0 +1,37 @@
+name: Publish Inter Flash TV OwnTV test APK
+on:
+  push:
+    branches: [feature/owntv-interflash-build]
+    paths: [.github/workflows/publish-owntv-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Wait for branded OwnTV build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run watch 40690100887 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
+      - name: Download the successful test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download 40690100887 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
+          APK=$(find dist -type f -name '*.apk' | head -n 1)
+          test -n "$APK" && test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          cp "$APK" InterFlashTV-OwnTV-FireTV-PRUEBA.apk
+      - name: Publish test-only prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create owntv-interflash-prueba-20261028 InterFlashTV-OwnTV-FireTV-PRUEBA.apk \
+            --repo manuel829mg-cloud/InterFlashTV \
+            --target feature/owntv-interflash-build \
+            --title "Inter Flash TV - OwnTV (prueba)" \
+            --notes "Versión de prueba con interfaz OwnTV y logotipo Inter Flash. No está aún integrada con la gestión de suscripciones de Inter Flash. Código original OwnTV bajo GNU GPL v3: https://github.com/ahXN00/OwnTV" \
+            --prerelease --latest=false
