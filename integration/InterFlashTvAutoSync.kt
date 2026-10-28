@@ -99,8 +99,16 @@ object InterFlashTvAutoSync {
                                 }
                             }
                             is InterFlashTvPanelClient.TvConfig.Suspended -> {
-                                // Do not claim cached streams have been revoked: server-side URL
-                                // and downstream playback authorization must be verified first.
+                                // Subscription expired: stop playback and remove ONLY the panel-owned
+                                // source. Other user-added sources and unrelated data remain untouched.
+                                player.onAppBackgrounded()
+                                player.discardBackgroundRestore()
+                                val sourceId = prefs.getLong("sourceId", -1)
+                                if (sourceId > 0) {
+                                    sources.getById(sourceId)?.let { sources.deleteSource(it) }
+                                    prefs.edit().remove("sourceId").remove("revision").apply()
+                                }
+                                tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_payment_expired))
                             }
                             else -> Unit
                         }
