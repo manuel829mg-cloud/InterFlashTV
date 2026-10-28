@@ -39,3 +39,14 @@ jobs:
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
           prerelease: true
+
+      - name: Publicar APK de prueba para Downloader
+        if: github.event_name == 'push' && github.ref == 'refs/heads/fix/tv-subscription-access-review'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: interflashtv-firetv-prueba-20261028
+          name: Inter Flash TV - APK de prueba para Fire TV
+          body: "APK de prueba, no es versión final. La vinculación, cobros y suspensión requieren validación antes de su uso comercial."
+          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: false
+          prerelease: true
