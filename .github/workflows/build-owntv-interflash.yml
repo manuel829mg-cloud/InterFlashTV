@@ -21,6 +21,8 @@ jobs:
         run: |
           mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
           cp integration/InterFlashTvPanelClient.kt owntv/app/src/main/java/tv/own/owntv/interflash/
+          cp integration/strings_interflash.xml owntv/app/src/main/res/values/strings_interflash.xml
+          cat integration/safe_literals_interflash.txt >> owntv/tools/i18n/safe_literals.txt
       - name: Apply Inter Flash TV package and name
         working-directory: owntv
         shell: bash
