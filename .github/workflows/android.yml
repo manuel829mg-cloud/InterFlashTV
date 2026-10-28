@@ -1,7 +1,7 @@
 name: Compilar APK
 on:
   push:
-    branches: [main]
+    branches: [main, fix/tv-subscription-access-review]
   pull_request:
     branches: [main]
   workflow_dispatch:
