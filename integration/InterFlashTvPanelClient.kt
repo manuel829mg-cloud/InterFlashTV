@@ -96,7 +96,16 @@ class InterFlashTvPanelClient(
             }
             val code = connection.responseCode
             val input = if (code in 200..299) connection.inputStream else connection.errorStream
-            val bytes = input?.use { it.readNBytes(16_385) } ?: byteArrayOf()
+            val bytes = input?.use { stream ->
+                val buffer = ByteArray(4096)
+                val output = java.io.ByteArrayOutputStream()
+                while (output.size() <= 16_384) {
+                    val n = stream.read(buffer, 0, minOf(buffer.size, 16_385 - output.size()))
+                    if (n <= 0) break
+                    output.write(buffer, 0, n)
+                }
+                output.toByteArray()
+            } ?: byteArrayOf()
             if (bytes.size > 16_384) throw IOException("Respuesta del panel demasiado grande")
             Pair(code, runCatching { JSONObject(String(bytes, Charsets.UTF_8)) }.getOrDefault(JSONObject()))
         } finally {
