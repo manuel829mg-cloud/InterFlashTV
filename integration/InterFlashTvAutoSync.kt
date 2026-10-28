@@ -19,7 +19,7 @@ import tv.own.owntv.core.database.entity.SourceEntity
  * no WebView, no duplicate player, no ISP customer/router/billing actions.
  */
 object InterFlashTvAutoSync {
-    fun start(activity: ComponentActivity, profiles: ProfileDao, sources: SourceRepository) {
+    fun start(activity: ComponentActivity, profiles: ProfileDao, sources: SourceRepository, player: tv.own.owntv.player.OwnTVPlayer) {
         val prefs = activity.getSharedPreferences("interflash_tv_panel_sync", Activity.MODE_PRIVATE)
         val client = InterFlashTvPanelClient(activity)
         activity.lifecycleScope.launch {
@@ -35,7 +35,20 @@ object InterFlashTvAutoSync {
             while (!activity.isFinishing && !activity.isDestroyed) {
                 try {
                     val pairing = client.register()
-                    if (!pairing.approved) {
+                    if (pairing.revoked) {
+                        pairingDialog?.dismiss()
+                        pairingDialog = null
+                        lastCode = null
+                        // Stop current playback before revoking the single panel-managed source.
+                        player.onAppBackgrounded()
+                        player.discardBackgroundRestore()
+                        val sourceId = prefs.getLong("sourceId", -1)
+                        if (sourceId > 0) {
+                            sources.getById(sourceId)?.let { sources.deleteSource(it) }
+                            prefs.edit().remove("sourceId").remove("revision").apply()
+                        }
+                        tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_revoked))
+                    } else if (!pairing.approved) {
                         if (lastCode != pairing.code) {
                             pairingDialog?.dismiss()
                             lastCode = pairing.code
