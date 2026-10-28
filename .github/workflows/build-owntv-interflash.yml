@@ -12,6 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 55
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch OwnTV source
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
       - name: Fetch matching OwnTV Core source
@@ -32,8 +33,16 @@ jobs:
           import re
           txt,n=re.subn(r'android:label="[^"]+"', 'android:label="Inter Flash TV"',txt,count=1)
           assert n==1, "Main Android label not found"
+          txt=re.sub(r'android:icon="[^"]+"','android:icon="@drawable/interflash_icon"',txt)
+          txt=re.sub(r'android:banner="[^"]+"','android:banner="@drawable/interflash_tv_banner"',txt)
           manifest.write_text(txt)
           PY
+      - name: Apply approved Inter Flash logo and banner
+        run: |
+          mkdir -p owntv/app/src/main/res/drawable-nodpi
+          base64 --decode branding/interflash-icon.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_icon.png
+          base64 --decode branding/interflash-banner.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
+          file owntv/app/src/main/res/drawable-nodpi/interflash_icon.png owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
