@@ -17,6 +17,10 @@ jobs:
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
       - name: Fetch matching OwnTV Core source
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
+      - name: Include isolated Inter Flash TV pairing API client
+        run: |
+          mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
+          cp integration/InterFlashTvPanelClient.kt owntv/app/src/main/java/tv/own/owntv/interflash/
       - name: Apply Inter Flash TV package and name
         working-directory: owntv
         shell: bash
