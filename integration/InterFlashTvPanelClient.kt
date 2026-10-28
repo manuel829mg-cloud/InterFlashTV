@@ -32,7 +32,7 @@ class InterFlashTvPanelClient(
         }
     }
 
-    data class Pairing(val code: String, val approved: Boolean)
+    data class Pairing(val code: String, val approved: Boolean, val revoked: Boolean)
 
     sealed interface TvConfig {
         data class Ready(val revision: Long, val name: String, val source: Source) : TvConfig
@@ -50,7 +50,7 @@ class InterFlashTvPanelClient(
         val data = JSONObject().put("token", deviceToken).put("name", name)
         val (status, json) = call("/api/tv-native/register", "POST", data, false)
         if (status != 200) throw IOException(context.getString(tv.own.owntv.R.string.if_tv_pair_error, status))
-        Pairing(json.getString("code"), json.optBoolean("approved"))
+        Pairing(json.getString("code"), json.optBoolean("approved"), json.optBoolean("revoked"))
     }
 
     suspend fun config(): TvConfig = withContext(Dispatchers.IO) {
