@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
  private boolean linkDialogDismissed = false;
  private boolean pageReady = false;
  private int panelRevision = -1;
+ private volatile boolean tvSuspended = false;
  private final Runnable panelPoll = new Runnable() {
   @Override public void run() { syncPanel(); panelHandler.postDelayed(this, 8000); }
  };
@@ -128,6 +129,10 @@ public class MainActivity extends Activity {
 
     int[] configStatus = new int[1];
     JSONObject config = requestJson("/api/tv-native/config", "GET", panelToken, null, configStatus);
+    if (configStatus[0] == 402) {
+     runOnUiThread(() -> setTvSuspended(true));
+     return;
+    }
     if (configStatus[0] == 409) {
      long now = System.currentTimeMillis();
      if (now - getSharedPreferences("interflash_tv", MODE_PRIVATE).getLong("no_playlist_notice", 0) > 90000) {
@@ -137,6 +142,7 @@ public class MainActivity extends Activity {
      return;
     }
     if (configStatus[0] != 200) throw new IOException("No se pudo consultar la lista del panel.");
+    if (tvSuspended) runOnUiThread(() -> setTvSuspended(false));
     int revision = config.optInt("revision", -1);
     if (revision < 0 || revision == panelRevision) return;
     String kind = config.optString("kind", "");
@@ -169,6 +175,19 @@ public class MainActivity extends Activity {
     panelBusy.set(false);
    }
   });
+ }
+
+ private void setTvSuspended(boolean suspended) {
+  if (tvSuspended == suspended) return;
+  tvSuspended = suspended;
+  if (suspended) {
+   exitFullscreen();
+   String js = "(function(){document.querySelectorAll('video,audio').forEach(function(v){try{v.pause();v.removeAttribute('src');v.querySelectorAll('source').forEach(function(s){s.removeAttribute('src')});v.load()}catch(e){}});var o=document.getElementById('if-tv-suspended');if(!o){o=document.createElement('div');o.id='if-tv-suspended';o.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;text-align:center;background:#08111e;color:#fff;font:bold 28px sans-serif;padding:24px';document.body.appendChild(o)}o.textContent='Servicio suspendido por falta de pago';})()";
+   web.evaluateJavascript(js, null);
+  } else {
+   web.evaluateJavascript("(function(){var o=document.getElementById('if-tv-suspended');if(o)o.remove()})()", null);
+   panelRevision = -1; // Force a fresh playlist on successful renewal.
+  }
  }
 
  private JSONObject requestJson(String path, String method, String bearer, JSONObject body, int[] statusOut) throws Exception {
