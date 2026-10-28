@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="if_tv_pair_error">No se pudo solicitar el código de vinculación (%1$d).</string>
+  <string name="if_tv_source_unsupported">Formato de lista TV no compatible.</string>
+  <string name="if_tv_panel_error">El panel TV respondió con error (%1$d).</string>
+  <string name="if_tv_https_only">La dirección recibida del panel debe utilizar HTTPS.</string>
+  <string name="if_tv_response_too_large">Respuesta del panel demasiado grande.</string>
+</resources>
