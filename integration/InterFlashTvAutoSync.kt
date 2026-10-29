@@ -113,9 +113,9 @@ object InterFlashTvAutoSync {
                                      manualOld == null || manualOld.url != cfg.manualUrl)) {
                                     val manualSource = if (manualOld != null &&
                                         manualOld.type == tv.own.owntv.core.model.SourceType.M3U) {
-                                        manualOld.copy(url = cfg.manualUrl, name = "Canales Dominicanos")
+                                        manualOld.copy(url = cfg.manualUrl, name = activity.getString(tv.own.owntv.R.string.if_tv_dominican_folder))
                                             .also { sources.updateSource(it) }
-                                    } else sources.addM3uSource(profileId, "Canales Dominicanos", cfg.manualUrl)
+                                    } else sources.addM3uSource(profileId, activity.getString(tv.own.owntv.R.string.if_tv_dominican_folder), cfg.manualUrl)
                                     prefs.edit().putLong("manualSourceId", manualSource.id).apply()
                                     val manualResult = sources.sync(manualSource, onProgress = {})
                                     if (manualResult is tv.own.owntv.core.sync.SyncResult.Success) {
