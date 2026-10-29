@@ -76,7 +76,7 @@ object InterFlashTvAutoSync {
                                 val profileId = profiles.getAllOnce().firstOrNull()?.id
                                     ?: profiles.insert(
                                         tv.own.owntv.core.database.entity.ProfileEntity(
-                                            name = "Inter Flash TV",
+                                            name = activity.getString(tv.own.owntv.R.string.if_tv_pair_title),
                                             avatarColor = android.graphics.Color.rgb(0, 90, 82),
                                         )
                                     )
