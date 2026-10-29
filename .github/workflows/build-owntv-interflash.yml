@@ -111,10 +111,11 @@ jobs:
           from pathlib import Path
           p = Path("owntv/tools/i18n/safe_literals.txt")
           text = p.read_text()
-          old = "1\\ttechnical\\tapp/src/main/java/tv/own/owntv/OwnTVApp.kt\\tahXN00/OwnTV"
-          new = "1\\ttechnical\\tapp/src/main/java/tv/own/owntv/OwnTVApp.kt\\tmanuel829mg-cloud/InterFlashTV"
-          assert text.count(old) == 1
-          p.write_text(text.replace(old, new, 1))
+          lines = text.splitlines(keepends=True)
+          prior = [i for i, line in enumerate(lines) if line.split(chr(9))[-1].strip() == "ahXN00/OwnTV" and "OwnTVApp.kt" in line]
+          assert len(prior) == 1, "Classification missing or duplicated"
+          lines[prior[0]] = lines[prior[0]].replace("ahXN00/OwnTV", "manuel829mg-cloud/InterFlashTV")
+          p.write_text("".join(lines))
           PY
       - name: Apply Inter Flash TV package and name
         working-directory: owntv
