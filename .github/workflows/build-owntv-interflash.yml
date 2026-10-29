@@ -1,7 +1,7 @@
-name: Build Inter Flash TV from OwnTV (isolated test)
+name: Inter Flash TV - Fast Channel Tune (isolated test)
 on:
   push:
-    branches: [feature/owntv-interflash-build]
+    branches: [test-fast-channel-tune-20261028]
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -17,6 +17,18 @@ jobs:
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
       - name: Fetch matching OwnTV Core source
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
+      - name: Test faster first-frame startup while preserving rebuffer stability
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("owntv-core/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt")
+          source = path.read_text()
+          before = "const val DEFAULT_START_MS = 1_000"
+          after = "const val DEFAULT_START_MS = 800"
+          assert source.count(before) == 1, "Playback defaults changed upstream; inspect before tuning"
+          assert "const val DEFAULT_RESTART_MS = 2_000" in source, "Rebuffer default changed upstream"
+          path.write_text(source.replace(before, after, 1))
+          PY
       - name: Tune live channel interruption recovery for Inter Flash TV only
         run: |
           python3 - <<'PY'
@@ -93,6 +105,6 @@ jobs:
           ls -l app/build/outputs/apk/standard/debug/*.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-OwnTV-FireTV-TEST
+          name: InterFlashTV-Fast-Tune-EXPERIMENT-APK
           path: owntv/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
