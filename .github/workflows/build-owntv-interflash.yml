@@ -107,6 +107,15 @@ jobs:
           cp integration/strings_interflash.xml owntv/app/src/main/res/values/strings_interflash.xml
           cat integration/safe_literals_interflash.txt >> owntv/tools/i18n/safe_literals.txt
           cat integration/safe_literals_interflash_sync.txt >> owntv/tools/i18n/safe_literals.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/tools/i18n/safe_literals.txt")
+          text = p.read_text()
+          old = "1\\ttechnical\\tapp/src/main/java/tv/own/owntv/OwnTVApp.kt\\tahXN00/OwnTV"
+          new = "1\\ttechnical\\tapp/src/main/java/tv/own/owntv/OwnTVApp.kt\\tmanuel829mg-cloud/InterFlashTV"
+          assert text.count(old) == 1
+          p.write_text(text.replace(old, new, 1))
+          PY
       - name: Apply Inter Flash TV package and name
         working-directory: owntv
         shell: bash
