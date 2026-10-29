@@ -2,6 +2,7 @@ name: Compilar APK
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 jobs:
   apk:
@@ -29,10 +30,11 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
 
       - name: Publicar APK directamente
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: prueba-v12
-          name: Inter Flash TV Nueva — sincronización con la plataforma
+          tag_name: prueba-v14-completa-20261029
+          name: Inter Flash TV v0.14 — vinculación y sincronización (prueba)
           files: app/build/outputs/apk/debug/app-debug.apk
           make_latest: true
           prerelease: true
