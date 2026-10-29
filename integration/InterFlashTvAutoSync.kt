@@ -47,6 +47,11 @@ object InterFlashTvAutoSync {
                             sources.getById(sourceId)?.let { sources.deleteSource(it) }
                             prefs.edit().remove("sourceId").remove("revision").apply()
                         }
+                        val manualId = prefs.getLong("manualSourceId", -1)
+                        if (manualId > 0) {
+                            sources.getById(manualId)?.let { sources.deleteSource(it) }
+                            prefs.edit().remove("manualSourceId").remove("manualRevision").apply()
+                        }
                         tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_revoked))
                     } else if (!pairing.approved) {
                         if (lastCode != pairing.code) {
@@ -97,6 +102,29 @@ object InterFlashTvAutoSync {
                                         tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_failed))
                                     }
                                 }
+                                // Independent Dominican TV source; existing primary source stays intact.
+                                val manualOldId = prefs.getLong("manualSourceId", -1)
+                                val manualOld = if (manualOldId > 0) sources.getById(manualOldId) else null
+                                if (cfg.manualUrl == null) {
+                                    if (manualOld != null) sources.deleteSource(manualOld)
+                                    prefs.edit().remove("manualSourceId").remove("manualRevision").apply()
+                                } else if (profileId != null &&
+                                    (prefs.getLong("manualRevision", -1) != cfg.manualRevision ||
+                                     manualOld == null || manualOld.url != cfg.manualUrl)) {
+                                    val manualSource = if (manualOld != null &&
+                                        manualOld.type == tv.own.owntv.core.model.SourceType.M3U) {
+                                        manualOld.copy(url = cfg.manualUrl, name = "Canales Dominicanos")
+                                            .also { sources.updateSource(it) }
+                                    } else sources.addM3uSource(profileId, "Canales Dominicanos", cfg.manualUrl)
+                                    prefs.edit().putLong("manualSourceId", manualSource.id).apply()
+                                    val manualResult = sources.sync(manualSource, onProgress = {})
+                                    if (manualResult is tv.own.owntv.core.sync.SyncResult.Success) {
+                                        prefs.edit().putLong("manualRevision", cfg.manualRevision).apply()
+                                    } else {
+                                        Log.w("InterFlashTV", "Dominican channel sync failed")
+                                        tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_sync_failed))
+                                    }
+                                }
                             }
                             is InterFlashTvPanelClient.TvConfig.Suspended -> {
                                 // Subscription expired: stop playback and remove ONLY the panel-owned
@@ -108,6 +136,11 @@ object InterFlashTvAutoSync {
                                     sources.getById(sourceId)?.let { sources.deleteSource(it) }
                                     prefs.edit().remove("sourceId").remove("revision").apply()
                                 }
+                                val manualId = prefs.getLong("manualSourceId", -1)
+                        if (manualId > 0) {
+                            sources.getById(manualId)?.let { sources.deleteSource(it) }
+                            prefs.edit().remove("manualSourceId").remove("manualRevision").apply()
+                        }
                                 tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_payment_expired))
                             }
                             else -> Unit
