@@ -1,7 +1,7 @@
-name: Inter Flash TV - Minimal Live HUD (test)
+name: Inter Flash TV - Native Updater (test)
 on:
   push:
-    branches: [test-minimal-live-hud-20261028]
+    branches: [test-native-updater-20261029]
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -88,6 +88,17 @@ jobs:
               src = src.replace(before, after, 1)
           path.write_text(src)
           PY
+      - name: Connect native updater to Inter Flash TV releases
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/app/src/main/java/tv/own/owntv/OwnTVApp.kt")
+          source = p.read_text()
+          before = 'tv.own.owntv.core.CoreBuildInfo.releaseRepo = "ahXN00/OwnTV"'
+          after = 'tv.own.owntv.core.CoreBuildInfo.releaseRepo = "manuel829mg-cloud/InterFlashTV"'
+          assert source.count(before) == 1, "Upstream release identity changed; stop and inspect"
+          p.write_text(source.replace(before, after, 1))
+          PY
       - name: Include isolated Inter Flash TV pairing API client
         run: |
           mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
@@ -139,14 +150,14 @@ jobs:
       - name: Build ARM / Fire TV test APK
         working-directory: owntv
         env:
-          VERSION_NAME: 99.99.99
-          VERSION_CODE: 99999
+          VERSION_NAME: 100.0.0
+          VERSION_CODE: 100000
         run: |
           chmod +x ./gradlew
           ./gradlew :app:assembleStandardDebug -Powntv.corePath=$GITHUB_WORKSPACE/owntv-core --no-daemon --stacktrace
           ls -l app/build/outputs/apk/standard/debug/*.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-Minimal-HUD-EXPERIMENT-APK
+          name: InterFlashTV-NativeUpdater-EXPERIMENT-APK
           path: owntv/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
