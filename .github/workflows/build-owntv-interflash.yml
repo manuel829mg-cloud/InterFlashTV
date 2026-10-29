@@ -1,7 +1,7 @@
-name: Inter Flash TV - Fast Channel Tune (isolated test)
+name: Inter Flash TV - Minimal Live HUD (test)
 on:
   push:
-    branches: [test-fast-channel-tune-20261028]
+    branches: [test-minimal-live-hud-20261028]
   workflow_dispatch:
   pull_request:
     branches: [main]
@@ -28,6 +28,48 @@ jobs:
           assert source.count(before) == 1, "Playback defaults changed upstream; inspect before tuning"
           assert "const val DEFAULT_RESTART_MS = 2_000" in source, "Rebuffer default changed upstream"
           path.write_text(source.replace(before, after, 1))
+          PY
+      - name: Show only bottom channel information on OK during live TV
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/app/src/main/java/tv/own/owntv/player/PlayerHud.kt")
+          text = p.read_text()
+          changes = {
+              'if (controlsVisible) {\n            val toSeek = focusSeekOnShow':
+                  'if (controlsVisible && isLive && error == null) {\n            runCatching { catchFocus.requestFocus() }\n        } else if (controlsVisible) {\n            val toSeek = focusSeekOnShow',
+              'if (!controlsVisible && !showNextCard) {\n            Box(':
+                  'if ((!controlsVisible || (isLive && error == null)) && !showNextCard) {\n            Box(',
+              '.onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key != Key.Back) { controlsVisible = true; true } else false },':
+                  '.onKeyEvent { e ->\n                        if (e.type != KeyEventType.KeyDown || e.key == Key.Back) false\n                        else {\n                            if (isLive && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) controlsVisible = !controlsVisible\n                            else controlsVisible = true\n                            true\n                        }\n                    },',
+              'if (isLive && (tuned != null || (showFlash && !controlsVisible))) {':
+                  'if (!isLive && (tuned != null || (showFlash && !controlsVisible))) {',
+              'if (controlsVisible) {\n            // Scrims:':
+                  '''if (controlsVisible && isLive && error == null) {
+            // Inter Flash TV test: channel identification only, below the picture.
+            // Keep native errors, stream watchdogs and all remote-key shortcuts unchanged.
+            val liveMeta by player.currentMeta.collectAsStateWithLifecycle()
+            Row(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(hudShade(0.86f))
+                    .padding(horizontal = 24.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                liveMeta.subtitle?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, color = Color.White.copy(alpha = 0.75f))
+                }
+                Text(liveMeta.title.orEmpty(), color = Color.White, fontWeight = FontWeight.SemiBold)
+            }
+        } else if (controlsVisible) {
+            // Scrims:''',
+          }
+          for before, after in changes.items():
+              assert text.count(before) == 1, "Upstream PlayerHud changed: " + before[:85]
+              text = text.replace(before, after, 1)
+          p.write_text(text)
           PY
       - name: Tune live channel interruption recovery for Inter Flash TV only
         run: |
@@ -105,6 +147,6 @@ jobs:
           ls -l app/build/outputs/apk/standard/debug/*.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-Fast-Tune-EXPERIMENT-APK
+          name: InterFlashTV-Minimal-HUD-EXPERIMENT-APK
           path: owntv/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
