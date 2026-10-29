@@ -1,4 +1,4 @@
-name: Publish Inter Flash TV OwnTV test APK
+name: Publish Inter Flash TV Dominican Channels APK
 on:
   push:
     branches: [feature/owntv-interflash-build]
@@ -9,29 +9,37 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
-      - name: Wait for branded OwnTV build
+      - name: Locate matching build run and wait for success
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run watch 40761150799 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
-      - name: Download the successful test APK
+        run: |
+          for i in $(seq 1 40); do
+            RUN_ID=$(gh run list --repo manuel829mg-cloud/InterFlashTV --workflow build-owntv-interflash.yml --branch feature/owntv-interflash-build --limit 30 --json databaseId,headSha --jq '.[] | select(.headSha == "'"${GITHUB_SHA}"'") | .databaseId' | head -1)
+            if [ -n "$RUN_ID" ]; then break; fi
+            sleep 15
+          done
+          test -n "$RUN_ID" || { echo "Build run missing"; exit 1; }
+          echo "BUILD_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          gh run watch "$RUN_ID" --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
+      - name: Download validated APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 40761150799 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
+          gh run download "$BUILD_RUN_ID" --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
           APK=$(find dist -type f -name '*.apk' | head -n 1)
           test -n "$APK" && test -s "$APK"
           unzip -t "$APK" >/dev/null
-          cp "$APK" InterFlashTV-OwnTV-DESVINCULAR.apk
-      - name: Publish test-only prerelease
+          cp "$APK" InterFlashTV-Canales-Dominicanos.apk
+      - name: Publish Dominican channels test APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create owntv-interflash-desvincular-20261028 InterFlashTV-OwnTV-DESVINCULAR.apk \
+          gh release create owntv-interflash-dominicanos-20261028 InterFlashTV-Canales-Dominicanos.apk \
             --repo manuel829mg-cloud/InterFlashTV \
-            --target feature/owntv-interflash-build \
-            --title "Inter Flash TV - OwnTV (prueba)" \
-            --notes "Versión de prueba con bloqueo de reproducción y retirada de lista TV tras desvincular, reactivación y sincronización M3U. Requiere que el módulo /inter-tv del panel esté desplegado y configurado; no se ha validado en televisor real. Requiere esta APK nueva en el televisor y conectividad con el panel. Los enlaces originales del proveedor no se revocan; no se ha validado en Fire TV real. Código original OwnTV bajo GNU GPL v3: https://github.com/ahXN00/OwnTV" \
+            --target "$GITHUB_SHA" \
+            --title "Inter Flash TV - Canales Dominicanos (prueba)" \
+            --notes "APK de prueba que agrega Canales Dominicanos como fuente M3U independiente y conserva la fuente principal. Requiere que el televisor esté vinculado al panel. Sin pruebas todavía en un televisor físico. Código original OwnTV bajo GPLv3 https://github.com/ahXN00/OwnTV" \
             --prerelease --latest=false
