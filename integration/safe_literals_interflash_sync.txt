@@ -1,7 +1,7 @@
 1	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	interflash_tv_panel_sync
-3	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	revision
-5	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	sourceId
-2	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	InterFlashTV
+4	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	revision
+7	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	sourceId
+3	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	InterFlashTV
 1	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	Sync returned failure:
 1	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	TV sync:
 7	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	manualSourceId
