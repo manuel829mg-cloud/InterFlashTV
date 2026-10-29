@@ -1,7 +1,7 @@
-name: Publish Inter Flash TV Fast Tune trial APK
+name: Publish Inter Flash TV Minimal Live HUD trial APK
 on:
   push:
-    branches: [test-fast-channel-tune-20261028]
+    branches: [test-minimal-live-hud-20261028]
     paths: [.github/workflows/publish-owntv-test.yml]
 permissions:
   actions: read
@@ -11,23 +11,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Wait for isolated live HUD build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run watch 40814628061 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
       - name: Download the verified test build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 40809591471 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-Fast-Tune-EXPERIMENT-APK -D dist
+          gh run download 40814628061 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-Minimal-HUD-EXPERIMENT-APK -D dist
           APK=$(find dist -type f -name '*.apk' | head -n 1)
           test -n "$APK" && test -s "$APK"
           unzip -t "$APK" >/dev/null
-          cp "$APK" InterFlashTV-Prueba-Cambio-Rapido.apk
+          cp "$APK" InterFlashTV-Prueba-Barra-Inferior.apk
       - name: Publish test-only APK without changing customer release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create owntv-interflash-fast-tune-test-20261028 InterFlashTV-Prueba-Cambio-Rapido.apk \
+          gh release create owntv-interflash-minimal-hud-test-20261028 InterFlashTV-Prueba-Barra-Inferior.apk \
             --repo manuel829mg-cloud/InterFlashTV \
-            --target d0874efb36d81464905efc52201773f3ff25bda5 \
-            --title "Inter Flash TV - Apertura rapida (prueba)" \
-            --notes "Versión de prueba para un solo televisor: cambia el búfer inicial de reproducción de 1000 ms a 800 ms, mantiene el búfer tras cortes y conserva Canales Dominicanos. No se ha validado aún en TV real; no distribuir a clientes. Proyecto OwnTV GPLv3 https://github.com/ahXN00/OwnTV" \
+            --target 140dc0b991f9e2db207cb96ba14dcfaa389a3d60 \
+            --title "Inter Flash TV - Barra inferior (prueba)" \
+            --notes "Prueba aislada: al pulsar OK en TV en directo se muestra una única barra inferior con nombre y número del canal, sin el panel superior ni el botón central. Conserva el búfer de recuperación, la mejora de arranque anterior y Canales Dominicanos. No se ha validado aún en TV real; no distribuir a clientes. Proyecto OwnTV GPLv3 https://github.com/ahXN00/OwnTV" \
             --prerelease --latest=false
