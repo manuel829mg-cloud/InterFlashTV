@@ -17,6 +17,23 @@ jobs:
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
       - name: Fetch matching OwnTV Core source
         run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
+      - name: Tune live channel interruption recovery for Inter Flash TV only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("owntv-core/player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt")
+          src = path.read_text()
+          # Keep upstream's bounded retry ladder, network watchdog, and codec selection intact.
+          # Only shorten two pause intervals following a detected failure.
+          replacements = {
+              "const val LIVE_RECONNECT_DELAY_MS = 3_500L": "const val LIVE_RECONNECT_DELAY_MS = 2_500L",
+              "const val FALLBACK_RETRY_DELAY_MS = 300L": "const val FALLBACK_RETRY_DELAY_MS = 200L",
+          }
+          for before, after in replacements.items():
+              assert src.count(before) == 1, "Upstream player timing changed; inspect before applying tuning"
+              src = src.replace(before, after, 1)
+          path.write_text(src)
+          PY
       - name: Include isolated Inter Flash TV pairing API client
         run: |
           mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
