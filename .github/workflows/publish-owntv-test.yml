@@ -1,5 +1,5 @@
 name: Publish Inter Flash TV Dominican Channels APK
-# Includes translated channel category and declared technical literals
+# Includes translated channel category and corrected technical literal inventory
 on:
   push:
     branches: [feature/owntv-interflash-build]
