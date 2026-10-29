@@ -35,7 +35,7 @@ class InterFlashTvPanelClient(
     data class Pairing(val code: String, val approved: Boolean, val revoked: Boolean)
 
     sealed interface TvConfig {
-        data class Ready(val revision: Long, val name: String, val source: Source) : TvConfig
+        data class Ready(val revision: Long, val name: String, val source: Source, val manualUrl: String?, val manualRevision: Long) : TvConfig
         data object PendingApproval : TvConfig
         data object NoSource : TvConfig
         data object Suspended : TvConfig
@@ -68,7 +68,9 @@ class InterFlashTvPanelClient(
                     )
                     else -> throw IOException(context.getString(tv.own.owntv.R.string.if_tv_source_unsupported))
                 }
-                TvConfig.Ready(json.getLong("revision"), json.optString("name", "Inter Flash TV"), source)
+                TvConfig.Ready(json.getLong("revision"), json.optString("name", "Inter Flash TV"), source,
+                    json.optString("manual_url").takeIf { it.isNotBlank() }?.let { approvedUrl(it) },
+                    json.optLong("manual_revision", 0L))
             }
             else -> throw IOException(context.getString(tv.own.owntv.R.string.if_tv_panel_error, status))
         }
