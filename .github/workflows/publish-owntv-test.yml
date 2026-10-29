@@ -1,7 +1,7 @@
-name: Publish Inter Flash TV Minimal Live HUD trial APK
+name: Publish Inter Flash TV Native Updater trial APK
 on:
   push:
-    branches: [test-minimal-live-hud-20261028]
+    branches: [test-native-updater-20261029]
     paths: [.github/workflows/publish-owntv-test.yml]
 permissions:
   actions: read
@@ -14,24 +14,24 @@ jobs:
       - name: Wait for isolated live HUD build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run watch 40814628061 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
+        run: gh run watch 40818418704 --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
       - name: Download the verified test build
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p dist
-          gh run download 40814628061 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-Minimal-HUD-EXPERIMENT-APK -D dist
+          gh run download 40818418704 --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-NativeUpdater-EXPERIMENT-APK -D dist
           APK=$(find dist -type f -name '*.apk' | head -n 1)
           test -n "$APK" && test -s "$APK"
           unzip -t "$APK" >/dev/null
-          cp "$APK" InterFlashTV-Prueba-Barra-Inferior.apk
+          cp "$APK" InterFlashTV-Prueba-Actualizador.apk
       - name: Publish test-only APK without changing customer release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create owntv-interflash-minimal-hud-test-20261028 InterFlashTV-Prueba-Barra-Inferior.apk \
+          gh release create owntv-interflash-updater-test-20261029 InterFlashTV-Prueba-Actualizador.apk \
             --repo manuel829mg-cloud/InterFlashTV \
-            --target 140dc0b991f9e2db207cb96ba14dcfaa389a3d60 \
-            --title "Inter Flash TV - Barra inferior (prueba)" \
-            --notes "Prueba aislada: al pulsar OK en TV en directo se muestra una única barra inferior con nombre y número del canal, sin el panel superior ni el botón central. Conserva el búfer de recuperación, la mejora de arranque anterior y Canales Dominicanos. No se ha validado aún en TV real; no distribuir a clientes. Proyecto OwnTV GPLv3 https://github.com/ahXN00/OwnTV" \
+            --target 250b4db31b1693b3ccd73add69341ba3a7b9eaf7 \
+            --title "Inter Flash TV - Actualizador interno (prueba)" \
+            --notes "Prueba aislada con barra inferior y enlace al actualizador nativo. Todavía NO se ha comprobado la actualización sobre una instalación anterior: la firma de la APK de desarrollo podría impedirla. No se ha validado aún en TV real; no distribuir a clientes. Proyecto OwnTV GPLv3 https://github.com/ahXN00/OwnTV" \
             --prerelease --latest=false
