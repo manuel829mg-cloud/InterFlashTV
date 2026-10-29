@@ -46,25 +46,25 @@ jobs:
                   'if (!isLive && (tuned != null || (showFlash && !controlsVisible))) {',
               'if (controlsVisible) {\n            // Scrims:':
                   '''if (controlsVisible && isLive && error == null) {
-            // Inter Flash TV test: channel identification only, below the picture.
-            // Keep native errors, stream watchdogs and all remote-key shortcuts unchanged.
-            val liveMeta by player.currentMeta.collectAsStateWithLifecycle()
-            Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(hudShade(0.86f))
-                    .padding(horizontal = 24.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                liveMeta.subtitle?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = Color.White.copy(alpha = 0.75f))
-                }
-                Text(liveMeta.title.orEmpty(), color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
-        } else if (controlsVisible) {
-            // Scrims:''',
+                      // Inter Flash TV test: channel identification only, below the picture.
+                      // Keep native errors, stream watchdogs and all remote-key shortcuts unchanged.
+                      val liveMeta by player.currentMeta.collectAsStateWithLifecycle()
+                      Row(
+                          Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                              .padding(horizontal = 20.dp, vertical = 24.dp)
+                              .clip(RoundedCornerShape(12.dp))
+                              .background(hudShade(0.86f))
+                              .padding(horizontal = 24.dp, vertical = 14.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(14.dp),
+                      ) {
+                          liveMeta.subtitle?.takeIf { it.isNotBlank() }?.let {
+                              Text(it, color = Color.White.copy(alpha = 0.75f))
+                          }
+                          Text(liveMeta.title.orEmpty(), color = Color.White, fontWeight = FontWeight.SemiBold)
+                      }
+                  } else if (controlsVisible) {
+                      // Scrims:''',
           }
           for before, after in changes.items():
               assert text.count(before) == 1, "Upstream PlayerHud changed: " + before[:85]
