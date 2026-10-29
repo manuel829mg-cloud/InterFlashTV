@@ -1,0 +1,98 @@
+name: Build Inter Flash TV from OwnTV (isolated test)
+on:
+  push:
+    branches: [feature/owntv-interflash-build]
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch OwnTV source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
+      - name: Fetch matching OwnTV Core source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
+      - name: Tune live channel interruption recovery for Inter Flash TV only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("owntv-core/player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt")
+          src = path.read_text()
+          # Keep upstream's bounded retry ladder, network watchdog, and codec selection intact.
+          # Only shorten two pause intervals following a detected failure.
+          replacements = {
+              "const val LIVE_RECONNECT_DELAY_MS = 3_500L": "const val LIVE_RECONNECT_DELAY_MS = 2_500L",
+              "const val FALLBACK_RETRY_DELAY_MS = 300L": "const val FALLBACK_RETRY_DELAY_MS = 200L",
+          }
+          for before, after in replacements.items():
+              assert src.count(before) == 1, "Upstream player timing changed; inspect before applying tuning"
+              src = src.replace(before, after, 1)
+          path.write_text(src)
+          PY
+      - name: Include isolated Inter Flash TV pairing API client
+        run: |
+          mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
+          cp integration/InterFlashTvPanelClient.kt owntv/app/src/main/java/tv/own/owntv/interflash/
+          cp integration/InterFlashTvAutoSync.kt owntv/app/src/main/java/tv/own/owntv/interflash/
+          cp integration/strings_interflash.xml owntv/app/src/main/res/values/strings_interflash.xml
+          cat integration/safe_literals_interflash.txt >> owntv/tools/i18n/safe_literals.txt
+          cat integration/safe_literals_interflash_sync.txt >> owntv/tools/i18n/safe_literals.txt
+      - name: Apply Inter Flash TV package and name
+        working-directory: owntv
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle=Path("app/build.gradle.kts")
+          data=gradle.read_text()
+          old='applicationId = "tv.own.owntv"'
+          assert old in data, "OwnTV app id changed; inspect source before building"
+          gradle.write_text(data.replace(old,'applicationId = "do.interflash.tv"',1))
+          manifest=Path("app/src/main/AndroidManifest.xml")
+          txt=manifest.read_text()
+          import re
+          txt,n=re.subn(r'android:label="[^"]+"', 'android:label="Inter Flash TV"',txt,count=1)
+          assert n==1, "Main Android label not found"
+          txt=re.sub(r'android:icon="[^"]+"','android:icon="@drawable/interflash_icon"',txt)
+          txt=re.sub(r'android:banner="[^"]+"','android:banner="@drawable/interflash_tv_banner"',txt)
+          manifest.write_text(txt)
+          activity=Path('app/src/main/java/tv/own/owntv/MainActivity.kt')
+          main=activity.read_text()
+          marker='super.onCreate(savedInstanceState)'
+          assert main.count(marker)==1, 'OwnTV lifecycle changed; review entrypoint'
+          main=main.replace(marker, marker+'\n        tv.own.owntv.interflash.InterFlashTvAutoSync.start(this, get<tv.own.owntv.core.database.dao.ProfileDao>(), get<tv.own.owntv.core.repository.SourceRepository>(), player)', 1)
+          activity.write_text(main)
+          PY
+      - name: Apply approved Inter Flash logo and banner
+        run: |
+          mkdir -p owntv/app/src/main/res/drawable-nodpi
+          base64 --decode branding/interflash-icon.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_icon.png
+          base64 --decode branding/interflash-banner.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
+          file owntv/app/src/main/res/drawable-nodpi/interflash_icon.png owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build ARM / Fire TV test APK
+        working-directory: owntv
+        env:
+          VERSION_NAME: 99.99.99
+          VERSION_CODE: 99999
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :app:assembleStandardDebug -Powntv.corePath=$GITHUB_WORKSPACE/owntv-core --no-daemon --stacktrace
+          ls -l app/build/outputs/apk/standard/debug/*.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-FireTV-TEST
+          path: owntv/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error

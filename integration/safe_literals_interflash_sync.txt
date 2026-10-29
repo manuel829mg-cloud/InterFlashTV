@@ -1,0 +1,11 @@
+1	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	interflash_tv_panel_sync
+4	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	revision
+7	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	sourceId
+3	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	InterFlashTV
+1	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	Sync returned failure:
+1	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	TV sync:
+7	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	manualSourceId
+5	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	manualRevision
+1	log	app/src/main/java/tv/own/owntv/interflash/InterFlashTvAutoSync.kt	Dominican channel sync failed
+1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashTvPanelClient.kt	manual_url
+1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashTvPanelClient.kt	manual_revision

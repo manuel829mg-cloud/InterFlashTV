@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="if_tv_pair_error">No se pudo solicitar el código de vinculación (%1$d).</string>
+  <string name="if_tv_source_unsupported">Formato de lista TV no compatible.</string>
+  <string name="if_tv_panel_error">El panel TV respondió con error (%1$d).</string>
+  <string name="if_tv_https_only">La dirección recibida del panel debe utilizar HTTPS.</string>
+  <string name="if_tv_response_too_large">Respuesta del panel demasiado grande.</string>
+  <string name="if_tv_pair_title">Vincular Inter Flash TV</string>
+  <string name="if_tv_pair_instructions">Entra en el panel Inter Flash TV y aprueba el televisor con este código: %1$s</string>
+  <string name="if_tv_missing_profile">Primero crea un perfil en la aplicación para recibir los canales.</string>
+  <string name="if_tv_sync_start">Inter Flash TV: importando canales…</string>
+  <string name="if_tv_sync_success">Inter Flash TV: lista de canales actualizada.</string>
+  <string name="if_tv_sync_failed">Inter Flash TV: no se pudo importar la lista. Reintentando.</string>
+  <string name="if_tv_revoked">Este televisor ha sido desvinculado. Los canales de Inter Flash TV se han desactivado.</string>
+  <string name="if_tv_payment_expired">La suscripción mensual de Inter Flash TV ha vencido. Contacta con el administrador para confirmar el pago.</string>
+  <string name="if_tv_dominican_folder">Canales Dominicanos</string>
+</resources>

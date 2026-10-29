@@ -1,0 +1,46 @@
+name: Publish Inter Flash TV Faster Recovery APK
+# Includes translated channel category and corrected technical literal inventory
+on:
+  push:
+    branches: [feature/owntv-interflash-build]
+    paths: [.github/workflows/publish-owntv-test.yml]
+permissions:
+  actions: read
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Locate matching build run and wait for success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 40); do
+            RUN_ID=$(gh run list --repo manuel829mg-cloud/InterFlashTV --workflow build-owntv-interflash.yml --branch feature/owntv-interflash-build --limit 30 --json databaseId,headSha --jq '.[] | select(.headSha == "'"${GITHUB_SHA}"'") | .databaseId' | head -1)
+            if [ -n "$RUN_ID" ]; then break; fi
+            sleep 15
+          done
+          test -n "$RUN_ID" || { echo "Build run missing"; exit 1; }
+          echo "BUILD_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          gh run watch "$RUN_ID" --repo manuel829mg-cloud/InterFlashTV --exit-status --interval 15
+      - name: Download validated APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          gh run download "$BUILD_RUN_ID" --repo manuel829mg-cloud/InterFlashTV -n InterFlashTV-OwnTV-FireTV-TEST -D dist
+          APK=$(find dist -type f -name '*.apk' | head -n 1)
+          test -n "$APK" && test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          cp "$APK" InterFlashTV-Reproduccion-Optimizada.apk
+      - name: Publish Dominican channels test APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create owntv-interflash-recuperacion-20261028 InterFlashTV-Reproduccion-Optimizada.apk \
+            --repo manuel829mg-cloud/InterFlashTV \
+            --target "$GITHUB_SHA" \
+            --title "Inter Flash TV - Recuperación rápida (prueba)" \
+            --notes "APK de prueba: reduce la espera para reconectar una señal congelada de 3.5 a 2.5 segundos y el intervalo de reintento de 300 a 200 milisegundos; mantiene la fuente principal y Canales Dominicanos. No cambia la lista ni el diseño. Requiere que el televisor esté vinculado al panel. Sin pruebas todavía en un televisor físico. Código original OwnTV bajo GPLv3 https://github.com/ahXN00/OwnTV" \
+            --prerelease --latest=false
