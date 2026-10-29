@@ -1,0 +1,210 @@
+name: Inter Flash TV - Signed In-Place Update Candidate
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: "Version (e.g. 100.0.1)"
+        required: true
+        default: "100.0.1"
+        type: string
+      version_code:
+        description: "Increasing Android versionCode"
+        required: true
+        default: "100001"
+        type: string
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch OwnTV source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV.git owntv
+      - name: Fetch matching OwnTV Core source
+        run: git clone --depth 1 https://github.com/ahXN00/OwnTV_Core.git owntv-core
+      - name: Test faster first-frame startup while preserving rebuffer stability
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("owntv-core/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt")
+          source = path.read_text()
+          before = "const val DEFAULT_START_MS = 1_000"
+          after = "const val DEFAULT_START_MS = 800"
+          assert source.count(before) == 1, "Playback defaults changed upstream; inspect before tuning"
+          assert "const val DEFAULT_RESTART_MS = 2_000" in source, "Rebuffer default changed upstream"
+          path.write_text(source.replace(before, after, 1))
+          PY
+      - name: Show only bottom channel information on OK during live TV
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/app/src/main/java/tv/own/owntv/player/PlayerHud.kt")
+          text = p.read_text()
+          changes = {
+              'if (controlsVisible) {\n            val toSeek = focusSeekOnShow':
+                  'if (controlsVisible && isLive && error == null) {\n            runCatching { catchFocus.requestFocus() }\n        } else if (controlsVisible) {\n            val toSeek = focusSeekOnShow',
+              'if (!controlsVisible && !showNextCard) {\n            Box(':
+                  'if ((!controlsVisible || (isLive && error == null)) && !showNextCard) {\n            Box(',
+              '.onKeyEvent { e -> if (e.type == KeyEventType.KeyDown && e.key != Key.Back) { controlsVisible = true; true } else false },':
+                  '.onKeyEvent { e ->\n                        if (e.type != KeyEventType.KeyDown || e.key == Key.Back) false\n                        else {\n                            if (isLive && (e.key == Key.DirectionCenter || e.key == Key.Enter || e.key == Key.NumPadEnter)) controlsVisible = !controlsVisible\n                            else controlsVisible = true\n                            true\n                        }\n                    },',
+              'if (isLive && (tuned != null || (showFlash && !controlsVisible))) {':
+                  'if (!isLive && (tuned != null || (showFlash && !controlsVisible))) {',
+              'if (controlsVisible) {\n            // Scrims:':
+                  '''if (controlsVisible && isLive && error == null) {
+                      // Inter Flash TV test: channel identification only, below the picture.
+                      // Keep native errors, stream watchdogs and all remote-key shortcuts unchanged.
+                      val liveMeta by player.currentMeta.collectAsStateWithLifecycle()
+                      Row(
+                          Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                              .padding(horizontal = 20.dp, vertical = 24.dp)
+                              .clip(RoundedCornerShape(12.dp))
+                              .background(hudShade(0.86f))
+                              .padding(horizontal = 24.dp, vertical = 14.dp),
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(14.dp),
+                      ) {
+                          liveMeta.subtitle?.takeIf { it.isNotBlank() }?.let {
+                              Text(it, color = Color.White.copy(alpha = 0.75f))
+                          }
+                          Text(liveMeta.title.orEmpty(), color = Color.White, fontWeight = FontWeight.SemiBold)
+                      }
+                  } else if (controlsVisible) {
+                      // Scrims:''',
+          }
+          for before, after in changes.items():
+              assert text.count(before) == 1, "Upstream PlayerHud changed: " + before[:85]
+              text = text.replace(before, after, 1)
+          p.write_text(text)
+          PY
+      - name: Tune live channel interruption recovery for Inter Flash TV only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("owntv-core/player-core/src/main/java/tv/own/owntv/player/OwnTVPlayer.kt")
+          src = path.read_text()
+          # Keep upstream's bounded retry ladder, network watchdog, and codec selection intact.
+          # Only shorten two pause intervals following a detected failure.
+          replacements = {
+              "const val LIVE_RECONNECT_DELAY_MS = 3_500L": "const val LIVE_RECONNECT_DELAY_MS = 2_500L",
+              "const val FALLBACK_RETRY_DELAY_MS = 300L": "const val FALLBACK_RETRY_DELAY_MS = 200L",
+          }
+          for before, after in replacements.items():
+              assert src.count(before) == 1, "Upstream player timing changed; inspect before applying tuning"
+              src = src.replace(before, after, 1)
+          path.write_text(src)
+          PY
+      - name: Connect native updater to Inter Flash TV releases
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/app/src/main/java/tv/own/owntv/OwnTVApp.kt")
+          source = p.read_text()
+          before = 'tv.own.owntv.core.CoreBuildInfo.releaseRepo = "ahXN00/OwnTV"'
+          after = 'tv.own.owntv.core.CoreBuildInfo.releaseRepo = "manuel829mg-cloud/InterFlashTV"'
+          assert source.count(before) == 1, "Upstream release identity changed; stop and inspect"
+          p.write_text(source.replace(before, after, 1))
+          PY
+      - name: Include isolated Inter Flash TV pairing API client
+        run: |
+          mkdir -p owntv/app/src/main/java/tv/own/owntv/interflash
+          cp integration/InterFlashTvPanelClient.kt owntv/app/src/main/java/tv/own/owntv/interflash/
+          cp integration/InterFlashTvAutoSync.kt owntv/app/src/main/java/tv/own/owntv/interflash/
+          cp integration/strings_interflash.xml owntv/app/src/main/res/values/strings_interflash.xml
+          cat integration/safe_literals_interflash.txt >> owntv/tools/i18n/safe_literals.txt
+          cat integration/safe_literals_interflash_sync.txt >> owntv/tools/i18n/safe_literals.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("owntv/tools/i18n/safe_literals.txt")
+          text = p.read_text()
+          lines = text.splitlines(keepends=True)
+          prior = [i for i, line in enumerate(lines) if line.split(chr(9))[-1].strip() == "ahXN00/OwnTV" and "OwnTVApp.kt" in line]
+          assert len(prior) == 1, "Classification missing or duplicated"
+          lines[prior[0]] = lines[prior[0]].replace("ahXN00/OwnTV", "manuel829mg-cloud/InterFlashTV")
+          p.write_text("".join(lines))
+          PY
+      - name: Apply Inter Flash TV package and name
+        working-directory: owntv
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          gradle=Path("app/build.gradle.kts")
+          data=gradle.read_text()
+          old='applicationId = "tv.own.owntv"'
+          assert old in data, "OwnTV app id changed; inspect source before building"
+          gradle.write_text(data.replace(old,'applicationId = "do.interflash.tv"',1))
+          manifest=Path("app/src/main/AndroidManifest.xml")
+          txt=manifest.read_text()
+          import re
+          txt,n=re.subn(r'android:label="[^"]+"', 'android:label="Inter Flash TV"',txt,count=1)
+          assert n==1, "Main Android label not found"
+          txt=re.sub(r'android:icon="[^"]+"','android:icon="@drawable/interflash_icon"',txt)
+          txt=re.sub(r'android:banner="[^"]+"','android:banner="@drawable/interflash_tv_banner"',txt)
+          manifest.write_text(txt)
+          activity=Path('app/src/main/java/tv/own/owntv/MainActivity.kt')
+          main=activity.read_text()
+          marker='super.onCreate(savedInstanceState)'
+          assert main.count(marker)==1, 'OwnTV lifecycle changed; review entrypoint'
+          main=main.replace(marker, marker+'\n        tv.own.owntv.interflash.InterFlashTvAutoSync.start(this, get<tv.own.owntv.core.database.dao.ProfileDao>(), get<tv.own.owntv.core.repository.SourceRepository>(), player)', 1)
+          activity.write_text(main)
+          PY
+      - name: Apply approved Inter Flash logo and banner
+        run: |
+          mkdir -p owntv/app/src/main/res/drawable-nodpi
+          base64 --decode branding/interflash-icon.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_icon.png
+          base64 --decode branding/interflash-banner.b64 > owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
+          file owntv/app/src/main/res/drawable-nodpi/interflash_icon.png owntv/app/src/main/res/drawable-nodpi/interflash_tv_banner.png
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Require persistent signing credentials (never use ephemeral debug keys)
+        env:
+          IF_KEYSTORE_B64: ${{ secrets.IF_TV_KEYSTORE_BASE64 }}
+          IF_KEYSTORE_PASSWORD: ${{ secrets.IF_TV_KEYSTORE_PASSWORD }}
+          IF_KEY_ALIAS: ${{ secrets.IF_TV_KEY_ALIAS }}
+          IF_KEY_PASSWORD: ${{ secrets.IF_TV_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IF_KEYSTORE_B64" ] || [ -z "$IF_KEYSTORE_PASSWORD" ] || [ -z "$IF_KEY_ALIAS" ] || [ -z "$IF_KEY_PASSWORD" ]; then
+            echo "::error::Missing signing secrets. No APK produced; configure the original app's signing key in repository secrets before running."
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/if-tv-signing"
+          chmod 700 "$RUNNER_TEMP/if-tv-signing"
+          printf '%s' "$IF_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/if-tv-signing/interflash-release.jks"
+          chmod 600 "$RUNNER_TEMP/if-tv-signing/interflash-release.jks"
+          test -s "$RUNNER_TEMP/if-tv-signing/interflash-release.jks"
+      - name: Build signed release for manual in-place-update validation only
+        working-directory: owntv
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/if-tv-signing/interflash-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.IF_TV_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.IF_TV_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.IF_TV_KEY_PASSWORD }}
+          VERSION_NAME: ${{ inputs.version_name }}
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION_NAME" =~ ^[0-9]+(\.[0-9]+){2}$ ]] || exit 1
+          [[ "$VERSION_CODE" =~ ^[0-9]+$ ]] || exit 1
+          chmod +x ./gradlew
+          ./gradlew :app:assembleStandardRelease -Powntv.corePath="$GITHUB_WORKSPACE/owntv-core" --no-daemon --stacktrace
+          APK=$(find app/build/outputs/apk/standard/release -type f -name '*.apk' | head -n 1)
+          test -n "$APK" && test -s "$APK"
+          apksigner verify --verbose --print-certs "$APK" | grep -E 'Verified using v|Signer #1 certificate SHA-256 digest'
+          cp "$APK" ../InterFlashTV-Actualizacion-Firmada-PRUEBA.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-SIGNED-UPDATE-CANDIDATE-DO-NOT-DISTRIBUTE
+          path: InterFlashTV-Actualizacion-Firmada-PRUEBA.apk
+          if-no-files-found: error
+      - name: Remove keystore from runner
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/if-tv-signing"
