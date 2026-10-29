@@ -71,10 +71,19 @@ object InterFlashTvAutoSync {
                         lastCode = null
                         when (val cfg = client.config()) {
                             is InterFlashTvPanelClient.TvConfig.Ready -> {
-                                val all = profiles.getAllOnce()
-                                val profileId = all.firstOrNull()?.id
-                                if (profileId == null) tellOnce(activity.getString(tv.own.owntv.R.string.if_tv_missing_profile))
-                                if (profileId != null && prefs.getLong("revision", -1) != cfg.revision) {
+                                // Fresh installs have no OwnTV profile. A panel-approved
+                                // device must still be able to receive its channel source.
+                                val profileId = profiles.getAllOnce().firstOrNull()?.id
+                                    ?: profiles.insert(
+                                        tv.own.owntv.core.database.entity.ProfileEntity(
+                                            name = "Inter Flash TV",
+                                            avatarColor = android.graphics.Color.rgb(0, 90, 82),
+                                        )
+                                    )
+                                val storedSourceId = prefs.getLong("sourceId", -1)
+                                val sourceMissing = storedSourceId <= 0 ||
+                                    sources.getById(storedSourceId) == null
+                                if (prefs.getLong("revision", -1) != cfg.revision || sourceMissing) {
                                     val existingId = prefs.getLong("sourceId", -1)
                                     val old = if (existingId > 0) sources.getById(existingId) else null
                                     val changed: SourceEntity = when (val src = cfg.source) {
