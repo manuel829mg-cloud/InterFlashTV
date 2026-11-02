@@ -1,4 +1,4 @@
-package do.interflash.tv;
+package com.interflash.tv;
 
 import android.app.Activity;
 import android.app.AlertDialog;
