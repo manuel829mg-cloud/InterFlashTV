@@ -1,7 +1,7 @@
 name: Native Inter Flash TV panel integration
 on:
   push:
-    branches: [feature/native-panel-link]
+    branches: [restore-native-panel-sync-v15-test]
     paths: ['.github/workflows/native-panel-link.yml', 'native/**']
   workflow_dispatch:
 permissions:
@@ -51,7 +51,7 @@ jobs:
           p = Path("app/build.gradle.kts")
           s = p.read_text()
           assert 'applicationId = "tv.own.owntv"' in s
-          p.write_text(s.replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.nativeapp"'))
+          p.write_text(s.replace('applicationId = "tv.own.owntv"', 'applicationId = "com.interflash.tv.panel"'))
           p = Path("app/src/main/res/values/interflash.xml")
           p.write_text('<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Inter Flash TV</string></resources>')
           p = Path("app/src/main/AndroidManifest.xml")
@@ -106,21 +106,12 @@ jobs:
       - name: Compile native application
         working-directory: own-source
         env:
-          VERSION_CODE: '12'
-          VERSION_NAME: '12.0-digital15-folder'
+          VERSION_CODE: '15'
+          VERSION_NAME: '0.15-panel-sync-test'
         run: bash gradlew -Powntv.corePath=../own-core :app:assembleStandardDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-native-digital15-folder
+          name: InterFlashTV-v0.15-panel-sync
           path: own-source/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
 
-      - name: Publish APK and corresponding source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: manuel829mg-cloud/InterFlashTV
-        run: |
-          cp own-source/app/build/outputs/apk/standard/debug/*.apk InterFlashTV-native-v12.apk
-          tar --exclude='*/build' --exclude='*/.gradle' -czf InterFlashTV-native-v12-source.tar.gz own-source
-          sha256sum InterFlashTV-native-v12.apk > SHA256SUMS.txt
-          gh release create native-v12-panel-test InterFlashTV-native-v12.apk InterFlashTV-native-v12-source.tar.gz SHA256SUMS.txt --target "$GITHUB_SHA" --prerelease --title "Inter Flash TV v12 - carpeta Digital 15" --notes "Añade Digital 15 en una fuente y categoría separadas, Prueba Digital 15, sin reemplazar el proveedor ni películas y series. El enlace suministrado tiene un certificado HTTPS que no coincide con la IP: reproducción no verificada en TV. OwnTV nativa con identidad Inter Flash. Ajusta inicialmente la latencia de TV en vivo a baja para abrir canales con menos espera; puede causar más pausas según el proveedor y la conexión. Conserva el cambio del botón de pausa central oculto mientras un canal está reproduciendo. Android 8 o posterior. Incluye las fuentes y licencias."
