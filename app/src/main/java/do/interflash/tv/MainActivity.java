@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
  private View fullscreenView;
  private WebChromeClient.CustomViewCallback fullscreenCallback;
  private static final String PANEL_ROOT = "https://interflash-isp-manager.up.railway.app";
+ private static final String PLAYER_URL = PANEL_ROOT + "/static/tv-player.html";
  private final Handler panelHandler = new Handler(Looper.getMainLooper());
  private final ExecutorService panelExecutor = Executors.newSingleThreadExecutor();
  private final AtomicBoolean panelBusy = new AtomicBoolean(false);
@@ -92,14 +93,16 @@ public class MainActivity extends Activity {
   settings.setMediaPlaybackRequiresUserGesture(false);
   root.addView(web, new FrameLayout.LayoutParams(-1,-1));
   setContentView(root);
-  web.loadUrl("https://inter-tv-prueba-production.up.railway.app/");
+  web.loadUrl(PLAYER_URL);
   startPanelLink();
   checkForUpdates();
  }
  private void startPanelLink() {
   SharedPreferences prefs = getSharedPreferences("interflash_tv", MODE_PRIVATE);
-  if (!PANEL_ROOT.equals(prefs.getString("panel_root", ""))) {
-   prefs.edit().putString("panel_root", PANEL_ROOT).putInt("playlist_revision", -1).apply();
+  if (!PANEL_ROOT.equals(prefs.getString("panel_root", "")) ||
+      !PLAYER_URL.equals(prefs.getString("player_url", ""))) {
+   prefs.edit().putString("panel_root", PANEL_ROOT).putString("player_url", PLAYER_URL)
+     .putInt("playlist_revision", -1).apply();
   }
   panelToken = prefs.getString("device_token", null);
   if (panelToken == null || panelToken.length() != 64) {
