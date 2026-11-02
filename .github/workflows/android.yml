@@ -1,7 +1,7 @@
 name: Compilar APK
 on:
   push:
-    branches: [main]
+    branches: [main, rebuild/player-v0.15]
   workflow_dispatch:
 jobs:
   apk:
@@ -28,11 +28,3 @@ jobs:
           name: InterFlashTV-APK
           path: app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Publicar APK directamente
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: prueba-v12
-          name: Inter Flash TV Nueva — sincronización con la plataforma
-          files: app/build/outputs/apk/debug/app-debug.apk
-          make_latest: true
-          prerelease: true
