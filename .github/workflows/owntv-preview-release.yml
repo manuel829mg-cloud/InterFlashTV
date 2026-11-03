@@ -1,7 +1,7 @@
 name: Publish permanently signed OwnTV v0.19
 on:
   push:
-    branches: [codex/owntv-v019-fast-start]
+    branches: [codex/owntv-v018-fast-start]
     paths: ['release/v019-apk-signature.json', 'release/rebuild_signed_apk.py', 'release/notes-v019.md', '.github/workflows/owntv-preview-release.yml']
 permissions:
   contents: write
