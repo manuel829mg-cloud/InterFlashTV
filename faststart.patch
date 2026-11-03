@@ -1,0 +1,27 @@
+--- a/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -445,9 +445,15 @@
+         if (playerMode != PlayerMode.NONE) { onStartupSettled(); return@LaunchedEffect }
+         val pid = resumeSettings.activeProfileId.first()
+         when (val startupMode = resumeSettings.startupMode(pid).first()) {
+-            tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL -> {
++            tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL,
++            // The user asked for the saved “last channel · TV Guide” startup to open the channel
++            // itself. Normalize that existing preference once so the setting matches what happens.
++            tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL_GUIDE -> {
+                 val ch = liveVm.lastWatchedLiveChannel()
+                 if (ch != null && playerMode == PlayerMode.NONE) {
++                    if (startupMode == tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL_GUIDE) {
++                        resumeSettings.setStartupMode(pid, tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL)
++                    }
+                     zapSource = MainSection.LIVE_TV
+                     // There is no caller-owned browse rail here. Let LiveViewModel build the channel's
+                     // provider context instead of permanently arming a one-item list that disables CH+/CH-.
+@@ -457,7 +463,6 @@
+             }
+             // The TV Guide or Live TV on the last channel's category, the channel focused and in the preview,
+             // as TiviMate opens. Live TV's list scrolls to it (revealChannel); a guide focuses its row on load.
+-            tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL_GUIDE,
+             tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL_LIVE -> {
+                 val ch = liveVm.lastWatchedLiveChannel()?.takeIf { liveVm.isVisibleToActiveProfile(it) }
+                 val toGuide = startupMode == tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL_GUIDE
