@@ -1,8 +1,8 @@
-name: Publish permanently signed OwnTV v0.22
+name: Publish permanently signed OwnTV v0.23
 on:
   push:
     branches: [codex/owntv-v018-fast-start]
-    paths: ['release/v022-apk-signature.json', 'release/rebuild_signed_apk.py', 'release/notes-v022.md', '.github/workflows/owntv-preview-release.yml']
+    paths: ['release/v023-apk-signature.json', 'release/rebuild_signed_apk.py', 'release/notes-v023.md', '.github/workflows/owntv-preview-release.yml']
 permissions:
   contents: write
   actions: read
@@ -22,28 +22,28 @@ jobs:
           java-version: '21'
       - name: Download the exact tested build
         run: |
-          RUN_ID=$(python -c "import json; print(json.load(open('release/v022-apk-signature.json'))['build_run_id'])")
-          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.22-build --dir build-artifact
+          RUN_ID=$(python -c "import json; print(json.load(open('release/v023-apk-signature.json'))['build_run_id'])")
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.23-build --dir build-artifact
       - name: Reassemble the already signed APK
         run: python release/rebuild_signed_apk.py
       - name: Verify application and permanent certificate
         run: |
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/InterFlashTV-OwnTV-v0.22-prueba.apk > verified-certificate.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/InterFlashTV-OwnTV-v0.23-prueba.apk > verified-certificate.txt
           python - <<'PY'
           from pathlib import Path
           import subprocess
           import os
           cert = Path('verified-certificate.txt').read_text()
           assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in cert
-          text = subprocess.check_output([os.environ['ANDROID_HOME'] + '/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.22-prueba.apk'], text=True)
-          assert "name='com.interflash.tv.player'" in text and "versionCode='22'" in text
+          text = subprocess.check_output([os.environ['ANDROID_HOME'] + '/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.23-prueba.apk'], text=True)
+          assert "name='com.interflash.tv.player'" in text and "versionCode='23'" in text
           PY
       - name: Publish complete release
         run: |
-          if gh release view v0.22 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            echo 'Release v0.22 already exists; inspect it before replacing any asset.'
+          if gh release view v0.23 --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo 'Release v0.23 already exists; inspect it before replacing any asset.'
             exit 1
           fi
-          gh release create v0.22 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV v0.22 — franja fina y reloj discreto' --notes-file release/notes-v022.md distribution/InterFlashTV-OwnTV-v0.22-prueba.apk distribution/InterFlashTV-OwnTV-source-v0.22.zip
-          gh release edit v0.22 --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release create v0.23 --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV v0.23 — OK abre la lista de canales de fábrica' --notes-file release/notes-v023.md distribution/InterFlashTV-OwnTV-v0.23-prueba.apk distribution/InterFlashTV-OwnTV-source-v0.23.zip
+          gh release edit v0.23 --repo "$GITHUB_REPOSITORY" --draft=false --latest
