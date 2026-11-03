@@ -40,7 +40,7 @@ jobs:
           VERSION_NAME: '0.24-autostart-fullscreen'
         run: |
           bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardDebug \
-            --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process \
+            --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
             -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - uses: actions/upload-artifact@v4
         with:
