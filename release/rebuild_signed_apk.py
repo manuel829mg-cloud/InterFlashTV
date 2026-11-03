@@ -6,7 +6,7 @@ are pinned, so this cannot sign a different binary or accept a changed artifact.
 from pathlib import Path
 import base64, hashlib, json, shutil, zlib
 
-manifest = json.loads(Path('release/v018-apk-signature.json').read_text())
+manifest = json.loads(Path('release/v019-apk-signature.json').read_text())
 root = Path('build-artifact')
 inputs = list(root.rglob('*.apk'))
 assert len(inputs) == 1
@@ -26,8 +26,8 @@ signed = b''.join(chunks)
 assert len(signed) == manifest['signed_size']
 assert hashlib.sha256(signed).hexdigest() == manifest['signed_sha256']
 out = Path('distribution'); out.mkdir(exist_ok=True)
-(out / 'InterFlashTV-OwnTV-v0.18-prueba.apk').write_bytes(signed)
-sources = list(root.rglob('InterFlashTV-OwnTV-source-v0.18.zip'))
+(out / 'InterFlashTV-OwnTV-v0.19-prueba.apk').write_bytes(signed)
+sources = list(root.rglob('InterFlashTV-OwnTV-source-v0.19.zip'))
 assert len(sources) == 1
-shutil.copyfile(sources[0], out / 'InterFlashTV-OwnTV-source-v0.18.zip')
+shutil.copyfile(sources[0], out / 'InterFlashTV-OwnTV-source-v0.19.zip')
 print('Reassembled APK matches the locally verified permanent signature exactly.')
