@@ -191,3 +191,97 @@ new file mode 100644
 +        }
 +    }
 +}
+diff --git a/core/src/test/java/tv/own/owntv/core/settings/PlayerRemoteOptionsPrefsTest.kt b/core/src/test/java/tv/own/owntv/core/settings/PlayerRemoteOptionsPrefsTest.kt
+--- a/core/src/test/java/tv/own/owntv/core/settings/PlayerRemoteOptionsPrefsTest.kt
++++ b/core/src/test/java/tv/own/owntv/core/settings/PlayerRemoteOptionsPrefsTest.kt
+@@ -11,13 +11,19 @@
+ class PlayerRemoteOptionsPrefsTest {
+ 
+     @Test
+-    fun `nothing stored reads as the player's own behaviour`() {
++    fun `nothing stored opens the live channel list`() {
+         val options = readPlayerRemoteOptions(emptyPreferences())
+         assertEquals(PlayerRemoteOptions(), options)
+         assertEquals(PlayerHoldOkAction.OFF, options.holdOk)
+-        assertEquals(PlayerShortOkAction.SHOW_CONTROLS, options.shortOk)
++        assertEquals(PlayerShortOkAction.CHANNEL_LIST, options.shortOk)
+         assertEquals(false, options.swapChannelKeys)
+         assertEquals(true, options.numberKeysTune)
++    }
++
++    @Test
++    fun `an explicit controls choice survives the new factory default`() {
++        val prefs = mutablePreferencesOf(Keys.PLAYER_SHORT_OK to PlayerShortOkAction.SHOW_CONTROLS.name)
++        assertEquals(PlayerShortOkAction.SHOW_CONTROLS, readPlayerRemoteOptions(prefs).shortOk)
+     }
+ 
+     @Test
+@@ -38,7 +44,7 @@
+         val prefs = mutablePreferencesOf(Keys.PLAYER_HOLD_OK to "TELETEXT", Keys.PLAYER_SHORT_OK to "MENU")
+         val options = readPlayerRemoteOptions(prefs)
+         assertEquals(PlayerHoldOkAction.OFF, options.holdOk)
+-        assertEquals(PlayerShortOkAction.SHOW_CONTROLS, options.shortOk)
++        assertEquals(PlayerShortOkAction.CHANNEL_LIST, options.shortOk)
+     }
+ 
+     @Test
+diff --git a/core/src/main/java/tv/own/owntv/core/settings/PlayerRemoteOptions.kt b/core/src/main/java/tv/own/owntv/core/settings/PlayerRemoteOptions.kt
+--- a/core/src/main/java/tv/own/owntv/core/settings/PlayerRemoteOptions.kt
++++ b/core/src/main/java/tv/own/owntv/core/settings/PlayerRemoteOptions.kt
+@@ -26,17 +26,16 @@
+     GUIDE;
+ 
+     companion object {
+-        fun fromName(name: String?): PlayerShortOkAction = entries.firstOrNull { it.name == name } ?: SHOW_CONTROLS
++        fun fromName(name: String?): PlayerShortOkAction = entries.firstOrNull { it.name == name } ?: CHANNEL_LIST
+     }
+ }
+ 
+ /**
+- * The player's remote-button options (Settings > Remote shortcuts > Player buttons). The defaults are
+- * exactly the player's behaviour before the options existed, so an unset value changes nothing.
++ * The player's remote-button options (Settings > Remote shortcuts > Player buttons). Inter Flash defaults OK to the live channel list. Films and episodes fall back to controls.
+  */
+ data class PlayerRemoteOptions(
+     val holdOk: PlayerHoldOkAction = PlayerHoldOkAction.OFF,
+-    val shortOk: PlayerShortOkAction = PlayerShortOkAction.SHOW_CONTROLS,
++    val shortOk: PlayerShortOkAction = PlayerShortOkAction.CHANNEL_LIST,
+     /** CH+ / CH− and D-pad Up / Down change channel the other way round. */
+     val swapChannelKeys: Boolean = false,
+     /** Number keys type a channel number in the live player; off leaves them to remote shortcuts. */
+diff --git a/core/src/main/res/values/strings_settings.xml b/core/src/main/res/values/strings_settings.xml
+--- a/core/src/main/res/values/strings_settings.xml
++++ b/core/src/main/res/values/strings_settings.xml
+@@ -154,7 +154,7 @@
+     <!-- Translators: One-line description under the "OK when the controls are hidden" setting. -->
+     <string name="settings_player_short_ok_description">What a short OK press does in the full-screen player</string>
+     <!-- Translators: Explanation shown in the panel beside the Settings rows while "OK when the controls are hidden" has focus. -->
+-    <string name="settings_help_player_short_ok">A short OK press in the full-screen player shows the controls. Choose Channel list or Guide to open that instead on live channels; any other button the player does not use still shows the controls. Films and episodes always show the controls.</string>
++    <string name="settings_help_player_short_ok">By default, a short OK press in full-screen live TV opens the channel list while the controls are hidden. You can choose Show controls or Guide instead. Films and episodes always show the controls.</string>
+     <!-- Translators: Setting label: a switch that swaps which way the channel up/down buttons change channel. -->
+     <string name="settings_player_swap_channel_keys">Swap channel up/down</string>
+     <!-- Translators: One-line description under the "Swap channel up/down" setting. -->
+diff --git a/core/src/main/res/values-es/strings_settings.xml b/core/src/main/res/values-es/strings_settings.xml
+--- a/core/src/main/res/values-es/strings_settings.xml
++++ b/core/src/main/res/values-es/strings_settings.xml
+@@ -76,7 +76,7 @@
+     <string name="settings_help_player_hold_ok">Mantén OK en el reproductor en directo a pantalla completa, con los controles ocultos, para abrir la lista de canales, la guía o la información del programa. Desactivado deja OK como siempre. Mientras esté activado, una pulsación corta de OK actúa al soltarla. Las películas y los episodios mantienen el OK habitual.</string>
+     <string name="settings_player_short_ok">OK con los controles ocultos</string>
+     <string name="settings_player_short_ok_description">Qué hace una pulsación corta de OK en el reproductor a pantalla completa</string>
+-    <string name="settings_help_player_short_ok">Una pulsación corta de OK en el reproductor a pantalla completa muestra los controles. Elige Lista de canales o Guía para abrir eso en los canales en directo; cualquier otro botón que el reproductor no use sigue mostrando los controles. Las películas y los episodios siempre muestran los controles.</string>
++    <string name="settings_help_player_short_ok">De fábrica, una pulsación corta de OK abre la lista de canales en TV en directo a pantalla completa cuando los controles están ocultos. Puedes elegir Mostrar controles o Guía en su lugar. Las películas y los episodios siempre muestran los controles.</string>
+     <string name="settings_player_swap_channel_keys">Invertir canal arriba/abajo</string>
+     <string name="settings_player_swap_channel_keys_description">CH+ y Arriba van al canal anterior</string>
+     <string name="settings_help_player_swap_channel_keys">Normalmente CH+ y Arriba van al canal siguiente, y CH− y Abajo al anterior. Actívalo para invertirlos mientras ves la tele, a pantalla completa y en el minirreproductor. Las listas de navegación no cambian.</string>
+diff --git a/core/src/main/res/values-es-rUS/strings_settings.xml b/core/src/main/res/values-es-rUS/strings_settings.xml
+--- a/core/src/main/res/values-es-rUS/strings_settings.xml
++++ b/core/src/main/res/values-es-rUS/strings_settings.xml
+@@ -76,7 +76,7 @@
+     <string name="settings_help_player_hold_ok">Mantén OK en el reproductor en vivo a pantalla completa, con los controles ocultos, para abrir la lista de canales, la guía o la información del programa. Desactivado deja OK como siempre. Mientras esté activado, una pulsación corta de OK actúa al soltarla. Las películas y los episodios mantienen el OK habitual.</string>
+     <string name="settings_player_short_ok">OK con los controles ocultos</string>
+     <string name="settings_player_short_ok_description">Qué hace una pulsación corta de OK en el reproductor a pantalla completa</string>
+-    <string name="settings_help_player_short_ok">Una pulsación corta de OK en el reproductor a pantalla completa muestra los controles. Elige Lista de canales o Guía para abrir eso en los canales en vivo; cualquier otro botón que el reproductor no use sigue mostrando los controles. Las películas y los episodios siempre muestran los controles.</string>
++    <string name="settings_help_player_short_ok">De fábrica, una pulsación corta de OK abre la lista de canales en TV en directo a pantalla completa cuando los controles están ocultos. Puedes elegir Mostrar controles o Guía en su lugar. Las películas y los episodios siempre muestran los controles.</string>
+     <string name="settings_player_swap_channel_keys">Invertir canal arriba/abajo</string>
+     <string name="settings_player_swap_channel_keys_description">CH+ y Arriba van al canal anterior</string>
+     <string name="settings_help_player_swap_channel_keys">Normalmente CH+ y Arriba van al canal siguiente, y CH− y Abajo al anterior. Actívalo para invertirlos mientras ves la TV, a pantalla completa y en el minirreproductor. Las listas de navegación no cambian.</string>

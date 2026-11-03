@@ -1119,3 +1119,32 @@ diff --git a/app/src/main/java/tv/own/owntv/player/PlayerClock.kt b/app/src/main
          modifier
              .clip(RoundedCornerShape(10.dp))
              .background(hudShade(0.38f))
+diff --git a/app/src/test/java/tv/own/owntv/player/PlayerOkPressTest.kt b/app/src/test/java/tv/own/owntv/player/PlayerOkPressTest.kt
+--- a/app/src/test/java/tv/own/owntv/player/PlayerOkPressTest.kt
++++ b/app/src/test/java/tv/own/owntv/player/PlayerOkPressTest.kt
+@@ -15,9 +15,14 @@
+     private val vod = PlayerOkTargets(channelList = false, guide = false, programmeInfo = false)
+ 
+     @Test
+-    fun defaultsLeaveOkAloneSoItWaitsForNothing() {
+-        assertNull(playerOkPlan(PlayerRemoteOptions(), live))
++    fun factoryOkOpensTheLiveListAndLeavesFilmsAlone() {
++        assertEquals(PlayerOkPlan(null, PlayerOkOutcome.CHANNEL_LIST), playerOkPlan(PlayerRemoteOptions(), live))
+         assertNull(playerOkPlan(PlayerRemoteOptions(), vod))
++    }
++
++    @Test
++    fun explicitControlsChoiceKeepsTheOrdinaryOkPath() {
++        assertNull(playerOkPlan(PlayerRemoteOptions(shortOk = PlayerShortOkAction.SHOW_CONTROLS), live))
+     }
+ 
+     @Test
+@@ -37,7 +42,7 @@
+             PlayerHoldOkAction.PROGRAMME_INFO to PlayerOkOutcome.PROGRAMME_INFO,
+         )
+         expected.forEach { (action, outcome) ->
+-            assertEquals(PlayerOkPlan(outcome, PlayerOkOutcome.SHOW_CONTROLS), playerOkPlan(PlayerRemoteOptions(holdOk = action), live))
++            assertEquals(PlayerOkPlan(outcome, PlayerOkOutcome.SHOW_CONTROLS), playerOkPlan(PlayerRemoteOptions(holdOk = action, shortOk = PlayerShortOkAction.SHOW_CONTROLS), live))
+         }
+     }
+ 

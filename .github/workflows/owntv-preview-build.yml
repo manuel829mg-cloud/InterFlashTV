@@ -1,4 +1,4 @@
-name: Build OwnTV Inter Flash v0.22
+name: Build OwnTV Inter Flash v0.23
 on:
   push:
     branches: [codex/owntv-v018-fast-start]
@@ -50,19 +50,19 @@ jobs:
           PY
       - name: Test catalog cache and build APK
         env:
-          VERSION_CODE: '22'
-          VERSION_NAME: '0.22-owntv-preview'
+          VERSION_CODE: '23'
+          VERSION_NAME: '0.23-owntv-preview'
         run: |
-          bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' :app:assembleStandardDebug --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' --tests 'tv.own.owntv.player.PlayerOkPressTest' :app:assembleStandardDebug --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - name: Test updater asset selection
         run: |
-          bash owntv-preview/InterFlashTV-OwnTV/gradlew -p owntv-preview/OwnTV_Core-main :core:testDebugUnitTest --tests 'tv.own.owntv.core.update.ReleaseAssetsTest' --tests 'tv.own.owntv.core.settings.InterFlashFastStartTest' --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          bash owntv-preview/InterFlashTV-OwnTV/gradlew -p owntv-preview/OwnTV_Core-main :core:testDebugUnitTest --tests 'tv.own.owntv.core.update.ReleaseAssetsTest' --tests 'tv.own.owntv.core.settings.InterFlashFastStartTest' --tests 'tv.own.owntv.core.settings.PlayerRemoteOptionsPrefsTest' --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - name: Package reproducible source without keys
         run: |
           python - <<'PY'
           from pathlib import Path
           import zipfile
-          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.22.zip', 'w', zipfile.ZIP_DEFLATED) as output:
+          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.23.zip', 'w', zipfile.ZIP_DEFLATED) as output:
               for folder in ['InterFlashTV-OwnTV', 'OwnTV_Core-main']:
                   root = Path('owntv-preview') / folder
                   for item in sorted(root.rglob('*')):
@@ -74,16 +74,16 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-OwnTV-v0.22-build
+          name: InterFlashTV-OwnTV-v0.23-build
           if-no-files-found: error
           retention-days: 7
           path: |
             owntv-preview/InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
-            InterFlashTV-OwnTV-source-v0.22.zip
+            InterFlashTV-OwnTV-source-v0.23.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: InterFlashTV-OwnTV-v0.22-test-reports
+          name: InterFlashTV-OwnTV-v0.23-test-reports
           retention-days: 7
           if-no-files-found: ignore
           path: |
