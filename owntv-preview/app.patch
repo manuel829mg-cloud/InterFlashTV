@@ -827,3 +827,113 @@ index 3c27e0b..0581d68 100644
  1	empty	app/src/main/java/tv/own/owntv/ui/components/StorageBrowser.kt	\0
  1	technical	app/src/main/java/tv/own/owntv/ui/components/TimeWheel.kt	▲
  1	technical	app/src/main/java/tv/own/owntv/ui/components/TimeWheel.kt	▼
+diff --git a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+--- a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+@@ -614,8 +614,8 @@
+         // is still switching to — draws here.
+         val tuned = (tuneOsd as? TuneOsd.Tuned)?.info
+         Column(
+-            modifier = Modifier.align(Alignment.TopStart)
+-                .padding(start = 28.dp, top = if (controlsVisible) 92.dp else 28.dp),
++            modifier = Modifier.align(if (isLive) Alignment.BottomStart else Alignment.TopStart)
++                .padding(start = 28.dp, top = if (isLive) 0.dp else if (controlsVisible) 92.dp else 28.dp, bottom = if (isLive) { if (controlsVisible) 320.dp else 28.dp } else 0.dp),
+             verticalArrangement = Arrangement.spacedBy(12.dp),
+         ) {
+             if (isLive && (tuned != null || (showFlash && !controlsVisible))) {
+@@ -648,14 +648,14 @@
+             // the inner edge. A pure gradient faded out exactly where the chips and the Now/Next text sit,
+             // so those washed out on bright scenes; a hard-edged band would instead draw a visible seam
+             // across the picture. The colour stops give the panel first, then the feather.
+-            Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(210.dp)
++            if (!isLive) Box(Modifier.align(Alignment.TopStart).fillMaxWidth().height(210.dp)
+                 .gradientWash(
+                     vertical = true,
+                     0.0f to hudShade(0.72f),
+                     0.5f to hudShade(0.68f),
+                     1.0f to Color.Transparent,
+                 ))
+-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(260.dp)
++            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(if (isLive) 360.dp else 260.dp)
+                 .gradientWash(
+                     vertical = true,
+                     0.0f to Color.Transparent,
+@@ -667,9 +667,10 @@
+             // One unified strip: back · logo · chips-over-channel-name · Now/Next guide. The channel name
+             // used to be drawn twice (here and in a floating card below), with the guide stranded on the
+             // right edge — that space belongs to the history list now.
+-            TopBar(
++            val informationBar: @Composable (Modifier) -> Unit = { placement ->
++                TopBar(
+                 player, isLive, listOfNotNull(engineChip) + streamChips.ifEmpty { listOfNotNull(videoRes) }, duration, onBack,
+-                modifier = Modifier.align(Alignment.TopStart),
++                modifier = placement,
+                 below = matchLine,
+                 trailing = if (error == null) liveEpgCard else null,
+                 // Hidden behind an error overlay along with the rest of the chrome: a clock ticking
+@@ -678,6 +679,8 @@
+                     { PlayerClock(watchingMs = watchingWallMs?.invoke()) }
+                 } else null,
+             )
++            }
++            if (!isLive) informationBar(Modifier.align(Alignment.TopStart))
+ 
+             // Hide the transport (play/seek/prev/next) and bottom bar while an error is up — the error
+             // overlay owns the screen with its own Retry, so the play/rewind/forward must not show behind it.
+@@ -687,6 +690,8 @@
+                 val reportDuration = duration.takeIf { it > 0 }?.let { formatTime(it) }
+                 val reportSavedMessage = stringResource(R.string.player_report_saved)
+ 
++                Column(Modifier.align(Alignment.BottomStart).fillMaxWidth()) {
++                    if (isLive) informationBar(Modifier)
+                 BottomBar(
+                     seekFocus = seekFocus,
+                     player = player, isLive = isLive, position = { position.value }, duration = duration,
+@@ -727,8 +732,9 @@
+                     favorite = favorite, onToggleFavorite = onToggleFavorite,
+                     onOpenDialog = { dialog = it }, onPip = onPip, onAudioMode = onAudioMode,
+                     onMultiview = onMultiview, onRecordThis = onRecordThis, recordingThis = recordingThis, onBack = onBack,
+-                    modifier = Modifier.align(Alignment.BottomStart),
++                    modifier = Modifier,
+                 )
++                }
+             }
+         }
+ 
+@@ -828,7 +834,7 @@
+             // the panel's own countdown and the engine re-asks by itself. The line under the spinner says
+             // why nothing is happening yet, so nobody reaches for Retry (or thinks the channel is dead).
+             buffering -> Column(Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+-                OwnTVSpinner(sizeDp = 56)
++                if (!isLive) OwnTVSpinner(sizeDp = 56)
+                 val stalledSince = stalledSinceMs
+                 if (providerBackOff == null && stalledSince != null) {
+                     val showNotice by produceState(false, stalledSince) {
+diff --git a/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt b/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt
+--- a/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt
++++ b/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt
+@@ -68,7 +68,6 @@
+ import tv.own.owntv.features.home.timeLeftText
+ import tv.own.owntv.ui.components.ChannelLogoTile
+ import tv.own.owntv.ui.components.OwnTVIcon
+-import tv.own.owntv.ui.components.OwnTVSpinner
+ import tv.own.owntv.ui.components.trapVerticalFocusExit
+ import tv.own.owntv.ui.format.rememberSystemTimeFormatter
+ import tv.own.owntv.ui.stage.shownColor
+@@ -253,7 +252,6 @@
+     val streamChips by previewEngine.streamChips.collectAsStateWithLifecycle()
+     val playing = showVideo && previewState != tv.own.owntv.player.LivePreviewEngine.State.ERROR &&
+         previewState != tv.own.owntv.player.LivePreviewEngine.State.IDLE
+-    val loading = showVideo && previewState == tv.own.owntv.player.LivePreviewEngine.State.LOADING
+     val videoR = 28.mpx
+     val videoShadow = tv.own.owntv.ui.theme.stageShadow(0.55f)
+     Column(modifier) {
+@@ -276,7 +274,7 @@
+                 ) { OwnTVIcon(OwnTVIcon.LIVE_TV, tint = StageColors.Dim, modifier = Modifier.size(56.mpx)) }
+             }
+             if (playing) tv.own.owntv.player.ExoPreviewSurface(engine = previewEngine, modifier = Modifier.fillMaxSize())
+-            if (loading) OwnTVSpinner(sizeDp = 28)
++            // Live channel changes keep the picture area free of a loading spinner.
+             // `.shade`: black 72% at the bottom, clear by 42% up — a video-sized gradient, one pass.
+             Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0.58f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.72f))))
+             Box(Modifier.fillMaxSize().drawBehind { drawInnerRing(Color.White.copy(alpha = 0.08f), 1.mpx.toPx(), videoR.toPx()) })
