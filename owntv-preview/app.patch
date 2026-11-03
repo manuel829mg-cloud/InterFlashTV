@@ -1,0 +1,829 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index f80adba..c9d46d2 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -17,6 +17,10 @@
+ - **📋 EPG Sources: Move up / Move down set the guide priority** (community PR #277 by @Kevsosmooth)
+ - **🎯 Guide offers Auto-match when an added guide matches no channel** (community PR #316 by @arch-fan)
+ - **⏪ Rewind mark in the TV Guide; Resync now in the playlist menu** (community PR #305 by @sarmadsoomro)
++- **🎛️ Player buttons: choose what OK does, swap channel up/down, number keys on or off** (community PR #287 by @Kevsosmooth)
++- **🚀 Start on the last channel in the TV Guide or Live TV** (community PR #294 by @Kevsosmooth)
++- **🏷️ Menu labels: off, when focused or always** (community PR #280 by @Kevsosmooth)
++- **🎤 Voice search on the Search screen** (community PR #281 by @Kevsosmooth)
+ 
+ ### 🐛 Fixes
+ - **Home: the last card of a row stays on screen when it has focus** (community PR #314 by @arch-fan)
+@@ -25,6 +29,7 @@
+ - **Loading spinners use far less of the TV's processor; imports finish sooner**
+ - **TV Guide: the now-line reaches the bottom** (community PR #303 by @spotandjake)
+ - **Settings no longer shows "0 playlists" while loading**
++- **Live TV no longer keeps showing a category from the playlist you just switched away from**
+ 
+ ## v5.2.1 — 2026-10-21
+ 
+diff --git a/INTERFLASH-ESTADO.md b/INTERFLASH-ESTADO.md
+new file mode 100644
+index 0000000..d0d2150
+--- /dev/null
++++ b/INTERFLASH-ESTADO.md
+@@ -0,0 +1,30 @@
++# Inter Flash TV — prueba con diseño OwnTV
++
++APK de prueba compilada y firmada para Android TV y Fire TV con Android 8 o superior. Véase VALIDACION.md.
++
++Cambios:
++- Se conserva la distribución de OwnTV y se muestra el nombre Inter Flash TV.
++- Vinculación previa por código; registro y comprobación del panel en primer plano cada diez segundos.
++- Se importan las listas M3U o cuentas Xtream configuradas en el panel. Se aceptan fuentes HTTP y HTTPS, como en el panel existente.
++- Cada cambio de revisión fuerza la retirada de elementos eliminados. Una importación fallida o cancelada no confirma la revisión.
++- Se pausa la reproducción al perder autorización o al actualizar la lista. Ante un error de red se vuelve a verificar antes de admitir al usuario.
++- Package com.interflash.tv.player; versión 0.17-owntv-preview; versionCode 17.
++- Actualizador dirigido a manuel829mg-cloud/InterFlashTV. La descarga e instalación de futuras versiones requiere una publicación y validación por separado.
++
++Reproducción de la compilación:
++- El ZIP contiene dos carpetas hermanas: InterFlashTV-OwnTV y OwnTV_Core-main.
++- Usar JDK 21, SDK Android 37.0 y acceso a las dependencias de Gradle.
++- Desde InterFlashTV-OwnTV: bash build-interflash.sh
++- Pruebas de configuración: bash build-interflash.sh :app:testStandardDebugUnitTest --tests tv.own.owntv.interflash.PanelSourceConfigTest
++- El ZIP original referencia la biblioteca publicada 1.0.69, que no contiene algunas funciones usadas por su propio código. Se incluye el código de OwnTV_Core 1.0.70 en desarrollo (upstream 38f30e6768bab28bddf3c2a6847788ccfb84358e) y una función updateSource de compatibilidad. El script selecciona esta biblioteca local para evitar el desajuste.
++- No se distribuyen claves ni contraseñas de firma. La APK se firma por separado con la clave permanente de Inter Flash.
++
++Pendiente de validación en el televisor:
++- Vincular con el código, abrir canales y comprobar cambios, altas y bajas desde el panel, incluida una lista vacía.
++- Probar reproducción, navegación y reanudación en Hisense/Fire TV.
++- Comprobar desvinculación y errores de conexión.
++- Comprobar la actualización contra el package y certificado de la aplicación instalada. La APK v0.14 examinada tiene un package y una firma distintos.
++- No hay código Downloader publicado para esta compilación.
++
++No se modificó la plataforma desplegada, MikroTik, facturas ni WhatsApp.
++Se mantienen los créditos y las licencias GPLv3 originales de OwnTV y OwnTV_Core.
+diff --git a/INTERFLASH-v0.18-ESTADO.md b/INTERFLASH-v0.18-ESTADO.md
+new file mode 100644
+index 0000000..0b6178b
+--- /dev/null
++++ b/INTERFLASH-v0.18-ESTADO.md
+@@ -0,0 +1,8 @@
++# v0.18: cambios de código pendientes de compilar
++
++- Tras validar registro y configuración con el panel, muestra la fuente local compatible antes de sincronizar. La primera importación sigue siendo necesaria si no hay catálogo guardado.
++- Guarda una huella SHA-256 de la configuración después de completar ambas importaciones. En aperturas posteriores evita repetir la importación cuando la revisión no cambió. Sigue consultando autorización y revisiones cada diez segundos en primer plano.
++- Los cambios de revisión fuerzan la sincronización y la eliminación de canales retirados. No se guarda autorización offline ni se cambia el diseño.
++- El actualizador existente consulta manuel829mg-cloud/interflash-gui-n-app y solo selecciona APK con prefijo InterFlashTV-OwnTV-. El repositorio no tenía lanzamientos al revisarlo. Hay que publicar una APK firmada compatible con una etiqueta de versión válida antes de poder usar actualizaciones desde la app.
++- Se agregaron cuatro pruebas de huella; no se ejecutaron: Gradle 9.7.1 no pudo descargarse (Network is unreachable). No existe una APK v0.18 compilada o probada en televisor.
++- Mantener applicationId com.interflash.tv.player y utilizar el mismo certificado de la v0.17. El sistema Android puede requerir confirmación de instalación.
+diff --git a/README.md b/README.md
+index 5a8aafc..8d8c994 100644
+--- a/README.md
++++ b/README.md
+@@ -68,6 +68,7 @@ Questions, ideas, bug reports — **join the OwnTV Telegram group:**
+ ### 🧭 Browse
+ - **Home** with Continue Watching and **Now Trending** (TMDB rankings matched to what your provider can actually play)
+ - Live TV · Movies · Series · Downloads · Guide, with per-profile row order, Favorites, History and search
++  (voice search where the TV has a speech recogniser)
+ - **Multiple playlists** at once, with provider labels everywhere they could be confused
+ - Rename, hide, reorder and combine categories; bulk rename rules
+ - **TMDB** posters, plots, cast and trailers in 40 languages — scales to ~50k channels / ~168k movies
+@@ -89,7 +90,8 @@ Questions, ideas, bug reports — **join the OwnTV Telegram group:**
+ 
+ ### 👥 Profiles & Downloads
+ - Multiple profiles with their own favourites, history and resume points, PIN locks and a Kids mode
+-- Per-profile startup: Home, last channel, Favorites, or one chosen channel
++- Per-profile startup: Home, last channel, the last channel in the TV Guide or Live TV, Favorites, or one
++  chosen channel
+ - Offline movies and episodes with pause, resume, retry and a storage bar
+ 
+ ### 🎨 Look & robustness
+@@ -97,7 +99,9 @@ Questions, ideas, bug reports — **join the OwnTV Telegram group:**
+   Picture or Plain background
+ - **Dark and Light themes** (or follow the TV) across the whole app, the player included
+ - Font sizing for the interface and for popups, independently
+-- **Remote Shortcuts** — map spare colour, number, channel and media keys to 26 actions
++- **Remote Shortcuts** — map spare colour, number, channel and media keys to 26 actions; **Player buttons**
++  choose what OK and a held OK do in the player, swap channel up/down, and turn number keys off
++- **Menu labels** — the section names beside the menu icons: off, when focused, or always
+ - **26 interface languages**, RTL-aware, chosen before anything else on a fresh install
+ - **Backup & Restore** to a single `.own` file, optionally encrypted, locally or over Wi-Fi
+ - **Set up from another device** — a new box copies everything from the OwnTV device you already
+diff --git a/VALIDACION.md b/VALIDACION.md
+new file mode 100644
+index 0000000..2bbd525
+--- /dev/null
++++ b/VALIDACION.md
+@@ -0,0 +1,13 @@
++# Validación — Inter Flash TV v0.17 de prueba
++
++- Compilación completa: BUILD SUCCESSFUL.
++- Siete pruebas de configuración pasaron, sin fallos ni errores.
++- Firma APK v2 y v3 verificada con la clave permanente de Inter Flash.
++- Package com.interflash.tv.player; versionCode 17; nombre 0.17-owntv-preview.
++- SHA-256: 6d0d83c448cc4d5b5c3f631d12fa056857f0f5de8e25ca97002fdcf8fb4a82e8
++- El DEX incluye la configuración y el identificador de la lista manual.
++- Alineación de 16 KiB comprobada.
++
++Cambios: sincronización adicional de canales manuales, retirada de esa lista al desaparecer del panel, vista combinada al importar la lista manual por primera vez y texto legible en la vinculación. Se conserva el diseño de OwnTV.
++
++Falta probar en el televisor la vinculación, la reproducción y las altas/bajas de canales. No se ha generado un código Downloader para esta versión. La publicación en tmpfiles.org fue bloqueada por la revisión automática por requerir autorización explícita para la nueva APK y el destino.
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index cf96227..fc8981d 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -44,18 +44,18 @@ android {
+     }
+ 
+     defaultConfig {
+-        applicationId = "tv.own.owntv"
++        applicationId = "com.interflash.tv.player"
+         minSdk = 26
+         targetSdk = 36
+         // CI injects these from the git tag (see .github/workflows/android.yml) so releases never
+         // need a manual edit here. The fallbacks are only used for local/debug builds — pinned HIGH
+         // (99999, mirroring versionName 99.99.99) so a local/debug APK is always "newer" than any
+         // published release and installs straight over it (no INSTALL_FAILED_VERSION_DOWNGRADE).
+-        versionCode = (System.getenv("VERSION_CODE") ?: "99999").toInt()
++        versionCode = (System.getenv("VERSION_CODE") ?: "18").toInt()
+         // CI injects VERSION_NAME from the git tag for releases. The fallback is only ever used by
+         // LOCAL builds (i.e. debug), so we pin it to 99.99.99 — that way a dev build is always "newer"
+         // than any published release and the in-app updater never offers an "update" while developing.
+-        versionName = System.getenv("VERSION_NAME") ?: "99.99.99"
++        versionName = System.getenv("VERSION_NAME") ?: "0.18-owntv-preview"
+ 
+         // Opt-in local diagnostic APKs keep the rolling playback trace enabled even when they are
+         // release-signed (so they can update an installed production build without changing its data).
+diff --git a/app/src/main/java/tv/own/owntv/MainActivity.kt b/app/src/main/java/tv/own/owntv/MainActivity.kt
+index d94f57e..55c1cff 100644
+--- a/app/src/main/java/tv/own/owntv/MainActivity.kt
++++ b/app/src/main/java/tv/own/owntv/MainActivity.kt
+@@ -141,7 +141,7 @@ open class MainActivity : ComponentActivity() {
+         // Paired with onStop: bring back what was freed while backgrounded (notably the TV screensaver, which
+         // kicks in during a long pause) — a VOD restored paused at its position, and a live channel re-tuned
+         // to the live edge — so Play resumes instead of sitting on a dead/empty stream. No-op on fresh launch.
+-        engines.onAppForegrounded()
++        // InterFlashGate resumes playback after verifying authorization with the panel.
+         // Staleness-based auto refresh on resume (interval modes only — STARTUP is cold-start only). The
+         // ViewModel throttles this internally so a quick toggle doesn't re-run the check.
+         shellViewModel.checkAutoRefresh(includeStartup = false)
+@@ -399,6 +399,7 @@ open class MainActivity : ComponentActivity() {
+                         if (background.showsPicture) BackgroundLayer(background, blurred)
+ 
+                         Box(modifier = Modifier.fillMaxSize()) {
++                        tv.own.owntv.interflash.InterFlashGate {
+                         val profile = activeProfileId
+                         when {
+                             profile == null || !profilesLoaded -> Unit // active id / Room list loading
+@@ -475,6 +476,7 @@ open class MainActivity : ComponentActivity() {
+                             // frame is safer than rendering protected content if a new state is added.
+                             else -> Unit
+                         }
++                        } // end InterFlashGate
+                         } // end foreground Box (above the background layer)
+                     }
+                     } // end LocalizedContent
+diff --git a/app/src/main/java/tv/own/owntv/OwnTVApp.kt b/app/src/main/java/tv/own/owntv/OwnTVApp.kt
+index e28ef9c..a238951 100644
+--- a/app/src/main/java/tv/own/owntv/OwnTVApp.kt
++++ b/app/src/main/java/tv/own/owntv/OwnTVApp.kt
+@@ -97,7 +97,8 @@ class OwnTVApp : Application(), SingletonImageLoader.Factory, androidx.work.Conf
+         // this value, so the line changes nothing today — it is here so the television names its own
+         // repository instead of relying on core to guess it, the same as the phone app does. A
+         // default that happens to be right for one app is a trap for every other one.
+-        tv.own.owntv.core.CoreBuildInfo.releaseRepo = "ahXN00/OwnTV"
++        tv.own.owntv.core.CoreBuildInfo.releaseRepo = "manuel829mg-cloud/InterFlashTV"
++        tv.own.owntv.core.CoreBuildInfo.releaseAssetPrefix = "InterFlashTV-OwnTV-"
+         // Fixed for this process before any player exists: the setting applies only after a restart.
+         tv.own.owntv.core.player.FfmpegAudioSetting.load(this)
+         // First thing after the context exists: a crash from here on leaves a trace on disk that the
+diff --git a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+index 9c2dfa5..003beb9 100644
+--- a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.combine
+ import kotlinx.coroutines.flow.debounce
+ import kotlinx.coroutines.flow.distinctUntilChanged
+ import kotlinx.coroutines.flow.drop
++import kotlinx.coroutines.flow.filter
+ import kotlinx.coroutines.flow.filterNotNull
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.flow.first
+@@ -893,6 +894,15 @@ class LiveViewModel(
+                 _selected.value = saved
+             }
+         }
++        // Another playlist or profile can leave the selection on a folder the new playlists do not have:
++        // its channels stayed listed under a wrong name. Such a folder falls back to All channels.
++        viewModelScope.launch {
++            ctx.filter { it.profileId >= 0 }.map { it.sourceIds }.distinctUntilChanged().drop(1).collect { ids ->
++                suspend fun gone(key: LiveKey?) = key is LiveKey.Folder && categoryDao.getById(key.id)?.sourceId !in ids
++                if (gone(previousKey)) previousKey = LiveKey.All
++                if (lockedKey == null && gone(_selected.value)) _selected.value = LiveKey.All
++            }
++        }
+         // Persist the last focused/interacted channel (debounced), and restore it once at startup so opening
+         // Live TV lands focus back on it. Restore leaves the preview disarmed (no auto-preview on launch).
+         // The restore is gated by the "Remember last item — Live TV" setting so users who want each category
+diff --git a/app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt b/app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt
+new file mode 100644
+index 0000000..b53aa3d
+--- /dev/null
++++ b/app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt
+@@ -0,0 +1,14 @@
++package tv.own.owntv.interflash
++
++import java.security.MessageDigest
++
++/** Persist only a digest: source credentials must never be duplicated in preferences. */
++internal object CatalogFingerprint {
++    fun of(config: PanelSourceConfig): String {
++        val fields = listOf(config.revision.toString(), config.kind, config.url,
++            config.username, config.password, config.manualUrl, config.manualRevision.toString())
++        val encoded = fields.joinToString("") { if (it == null) "-1:" else "${it.length}:$it" }
++        return MessageDigest.getInstance("SHA-256").digest(encoded.toByteArray(Charsets.UTF_8))
++            .joinToString("") { "%02x".format(it.toInt() and 255) }
++    }
++}
+diff --git a/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt b/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
+new file mode 100644
+index 0000000..f5ddf5d
+--- /dev/null
++++ b/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
+@@ -0,0 +1,232 @@
++package tv.own.owntv.interflash
++
++import android.content.Context
++import tv.own.owntv.R
++import androidx.compose.ui.res.stringResource
++import androidx.compose.runtime.*
++import androidx.compose.ui.Modifier
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.ui.platform.LocalContext
++import androidx.lifecycle.Lifecycle
++import androidx.lifecycle.compose.LocalLifecycleOwner
++import androidx.lifecycle.repeatOnLifecycle
++import androidx.tv.material3.Text
++import kotlinx.coroutines.*
++import kotlinx.coroutines.flow.first
++import org.json.JSONObject
++import org.koin.compose.koinInject
++import tv.own.owntv.core.database.dao.ProfileDao
++import tv.own.owntv.core.profile.ProfileManager
++import tv.own.owntv.core.repository.SourceRepository
++import tv.own.owntv.core.settings.SettingsRepository
++import tv.own.owntv.core.sync.SyncResult
++import tv.own.owntv.core.database.entity.SourceEntity
++import java.io.IOException
++import tv.own.owntv.features.settings.StageFullPage
++import tv.own.owntv.player.PlaybackEngines
++import java.net.HttpURLConnection
++import java.net.URL
++import java.security.SecureRandom
++
++/** Foreground-only panel authorization. No cached approval can admit a fresh launch. */
++@Composable
++fun InterFlashGate(content: @Composable () -> Unit) {
++    val context = LocalContext.current.applicationContext
++    val appName = stringResource(R.string.app_name)
++    val lifecycle = LocalLifecycleOwner.current.lifecycle
++    val sources: SourceRepository = koinInject()
++    val profiles: ProfileManager = koinInject()
++    val profileDao: ProfileDao = koinInject()
++    val settings: SettingsRepository = koinInject()
++    val engines: PlaybackEngines = koinInject()
++    val controller = remember(context) { PanelController(context, sources, profiles, profileDao, settings) }
++    var admitted by remember { mutableStateOf(false) }
++    var code by remember { mutableStateOf("") }
++    var message by remember { mutableStateOf(context.getString(R.string.interflash_connecting)) }
++
++    LaunchedEffect(controller, lifecycle) {
++        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
++            admitted = false
++            while (isActive) {
++                try {
++                    val registration = withContext(Dispatchers.IO) { controller.register() }
++                    code = registration.optString("code")
++                    if (!registration.optBoolean("approved", false)) {
++                        admitted = false
++                        engines.onAppBackgrounded()
++                        message = context.getString(R.string.interflash_pair_instructions)
++                    } else {
++                        // Every poll rechecks config authorization, even if the revision is unchanged.
++                        controller.synchronize {
++                            if (!admitted) engines.onAppForegrounded()
++                            admitted = true
++                        }
++                        if (!admitted) engines.onAppForegrounded()
++                        admitted = true
++                    }
++                } catch (cancelled: CancellationException) {
++                    throw cancelled
++                } catch (_: CatalogImportException) {
++                    // Authorization succeeded; a catalog refresh failure must keep the saved list open.
++                    message = context.getString(R.string.interflash_retry)
++                } catch (_: Exception) {
++                    // Fail closed on network/config errors; never leave a revoked session playing.
++                    admitted = false
++                    engines.onAppBackgrounded()
++                    message = context.getString(R.string.interflash_retry)
++                }
++                delay(10_000)
++            }
++        }
++    }
++    if (admitted) content() else {
++        StageFullPage(
++            parents = emptyList(), title = appName, count = stringResource(R.string.interflash_pair_title),
++            onBack = {}, handleBack = false, settingsRoot = false, modifier = Modifier.fillMaxSize(),
++        ) {
++            Text(if (code.isBlank()) stringResource(R.string.interflash_waiting_code) else stringResource(R.string.interflash_pair_code, code), color = tv.own.owntv.ui.theme.StageColors.Text)
++            Text(message, color = tv.own.owntv.ui.theme.StageColors.Text)
++        }
++    }
++}
++
++private class PanelController(
++    context: Context,
++    private val sources: SourceRepository,
++    private val profiles: ProfileManager,
++    private val profileDao: ProfileDao,
++    private val settings: SettingsRepository,
++) {
++    private val appName = context.getString(R.string.app_name)
++    private val manualName = context.getString(R.string.interflash_manual_channels)
++    private val prefs = context.getSharedPreferences("interflash_panel", Context.MODE_PRIVATE)
++    private val token: String = prefs.getString("device_token", null) ?: run {
++        val bytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
++        bytes.joinToString("") { "%02x".format(it.toInt() and 255) }
++            .also { check(prefs.edit().putString("device_token", it).commit()) }
++    }
++    // In-memory fast path; the successful catalog fingerprint also survives process restarts.
++    private var importedConfig: PanelSourceConfig? = null
++
++    fun register(): JSONObject = request(
++        "/api/tv-native/register",
++        JSONObject().put("token", token).put("name", appName),
++    )
++
++    suspend fun synchronize(onCatalogReady: () -> Unit) {
++        val config = withContext(Dispatchers.IO) { request("/api/tv-native/config") }
++        val parsed = PanelSourceConfig.parse(config)
++        val allProfiles = profileDao.getAllOnce()
++        val activeProfile = settings.activeProfileId.first()
++        var profile = allProfiles.firstOrNull { it.id == activeProfile }?.id ?: allProfiles.firstOrNull()?.id
++        if (profile == null) {
++            profile = profiles.create(appName, 0, false, null, appName)
++        }
++        if (settings.activeProfileId.first() < 0) profiles.switchTo(profile)
++        val previousId = prefs.getLong("source_id", -1)
++        val previous = sources.getById(previousId)
++        val manualId = prefs.getLong("manual_source_id", -1)
++        val previousManual = sources.getById(manualId)
++        // Uploaded panel files already include manual channels; avoid importing them twice.
++        val bundledManual = parsed.kind == "m3u" && URL(parsed.url).let {
++            it.host == "interflash-isp-manager.up.railway.app" && it.path.startsWith("/api/tv-native/playlist/")
++        }
++        val manualUrl = parsed.manualUrl.takeUnless { bundledManual }
++        val cacheMatches = previous != null && previous.lastSyncAt != null &&
++            previous.url == parsed.url && previous.username == parsed.username &&
++            previous.password == parsed.password && previous.type.name.equals(parsed.kind, ignoreCase = true) &&
++            (manualUrl == null || (previousManual?.url == manualUrl && previousManual.lastSyncAt != null))
++        // Authorization was checked above on this foreground session. Only the catalog is cached.
++        if (cacheMatches) onCatalogReady()
++        val fingerprint = CatalogFingerprint.of(parsed)
++        if (cacheMatches && (importedConfig == parsed ||
++                prefs.getString("catalog_fingerprint", null) == fingerprint)) return
++
++        // Keep the same source id across refreshes so favourites remain attached.
++        val kind = parsed.kind
++        val url = parsed.url
++        val type = when (kind) {
++            "m3u" -> tv.own.owntv.core.model.SourceType.M3U
++            "xtream" -> tv.own.owntv.core.model.SourceType.XTREAM
++            else -> error("Unsupported panel source")
++        }
++        val source = if (previous == null) {
++            when (kind) {
++                "xtream" -> sources.addXtreamSource(profile, appName, url,
++                    requireNotNull(parsed.username), requireNotNull(parsed.password))
++                else -> sources.addM3uSource(profile, appName, url)
++            }.also { check(prefs.edit().putLong("source_id", it.id).commit()) }
++        } else previous.copy(
++            type = type, url = url,
++            username = parsed.username,
++            password = parsed.password,
++        ).also { sources.updateSource(it) }
++
++        // forcePrune is essential: removed channels must disappear, rather than stay cached.
++        importCatalog(source)
++        // A failed or cancelled import is retried; never acknowledge its revision prematurely.
++        if (manualUrl != null) {
++            val manualSource = if (previousManual == null) {
++                sources.addM3uSource(profile, manualName, manualUrl).also {
++                    check(prefs.edit().putLong("manual_source_id", it.id).commit())
++                }
++            } else previousManual.copy(url = manualUrl).also { sources.updateSource(it) }
++            importCatalog(manualSource)
++            // Show the newly added panel catalog alongside the existing provider on first import.
++            if (previousManual == null) settings.setDefaultSource(-1L)
++        } else if (previousManual != null) {
++            sources.deleteSource(previousManual)
++            check(prefs.edit().remove("manual_source_id").commit())
++        }
++        check(prefs.edit().putString("catalog_fingerprint", fingerprint).commit())
++        importedConfig = parsed
++    }
++
++    private suspend fun importCatalog(source: SourceEntity) {
++        val result = try {
++            sources.sync(source, forcePrune = true, onProgress = {})
++        } catch (cancelled: CancellationException) {
++            throw cancelled
++        } catch (error: Exception) {
++            throw CatalogImportException(error)
++        }
++        if (result !is SyncResult.Success) throw CatalogImportException()
++    }
++
++    private fun request(path: String, body: JSONObject? = null): JSONObject {
++        val connection = URL(PANEL_ROOT + path).openConnection() as HttpURLConnection
++        try {
++            connection.connectTimeout = 9_000
++            connection.readTimeout = 15_000
++            connection.instanceFollowRedirects = false
++            connection.setRequestProperty("Accept", "application/json")
++            if (body == null) connection.setRequestProperty("Authorization", "Bearer $token")
++            else {
++                connection.requestMethod = "POST"
++                connection.doOutput = true
++                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
++                connection.outputStream.use { it.write(body.toString().toByteArray(Charsets.UTF_8)) }
++            }
++            check(connection.responseCode == 200) { "Panel request failed" }
++            val bytes = connection.inputStream.use { input ->
++                val output = java.io.ByteArrayOutputStream()
++                val buffer = ByteArray(8192)
++                while (true) {
++                    val count = input.read(buffer)
++                    if (count < 0) break
++                    check(output.size() + count <= 200_000) { "Panel response too large" }
++                    output.write(buffer, 0, count)
++                }
++                output.toByteArray()
++            }
++            return JSONObject(String(bytes, Charsets.UTF_8))
++        } finally {
++            connection.disconnect()
++        }
++    }
++    companion object {
++        private const val PANEL_ROOT = "https://interflash-isp-manager.up.railway.app"
++    }
++}
++
++private class CatalogImportException(cause: Throwable? = null) : IOException(cause)
+diff --git a/app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt b/app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt
+new file mode 100644
+index 0000000..01b9884
+--- /dev/null
++++ b/app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt
+@@ -0,0 +1,45 @@
++package tv.own.owntv.interflash
++
++import org.json.JSONObject
++import java.net.URL
++
++/** Validate the authenticated panel payload before updating a stored source. */
++internal data class PanelSourceConfig(
++    val revision: Long,
++    val kind: String,
++    val url: String,
++    val username: String?,
++    val password: String?,
++    val manualUrl: String?,
++    val manualRevision: Long,
++) {
++    companion object {
++        fun parse(json: JSONObject): PanelSourceConfig {
++            val revision = json.getLong("revision")
++            require(revision >= 0) { "Invalid panel revision" }
++            val kind = json.getString("kind")
++            require(kind == "m3u" || kind == "xtream") { "Unsupported panel source" }
++            val raw = json.getString(if (kind == "xtream") "server" else "url")
++            val url = URL(raw)
++            require((url.protocol == "https" || url.protocol == "http") && url.host.isNotBlank() && url.userInfo == null) {
++                "The panel source must use HTTP(S) without inline credentials"
++            }
++            val manualUrl = json.optString("manual_url", "").takeIf { it.isNotBlank() }
++            manualUrl?.let {
++                val manual = URL(it)
++                require(manual.protocol == "https" && manual.host == "interflash-isp-manager.up.railway.app"
++                    && manual.userInfo == null && manual.path.startsWith("/api/tv-native/manual/")) {
++                    "Invalid manual channel source"
++                }
++            }
++            val manualRevision = json.optLong("manual_revision", revision)
++            require(manualRevision >= 0) { "Invalid manual revision" }
++            return PanelSourceConfig(
++                revision, kind, raw,
++                if (kind == "xtream") json.getString("username") else null,
++                if (kind == "xtream") json.getString("password") else null,
++                manualUrl, manualRevision,
++            )
++        }
++    }
++}
+diff --git a/app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt b/app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt
+index c4d0772..d2f66c1 100644
+--- a/app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt
++++ b/app/src/main/java/tv/own/owntv/ui/components/BrandLockup.kt
+@@ -20,8 +20,15 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.ColorFilter
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.painterResource
++import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import androidx.compose.ui.text.SpanStyle
++import androidx.compose.ui.text.buildAnnotatedString
++import androidx.compose.ui.text.withStyle
++import androidx.compose.ui.text.font.FontWeight
++import androidx.tv.material3.Text
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import org.koin.compose.koinInject
+ import tv.own.owntv.R
+@@ -106,9 +113,18 @@ private val PixelPower = Color(CorePixelMark.POWER)
+  */
+ @Composable
+ fun Wordmark(width: Dp, modifier: Modifier = Modifier, tv: Color = stageAccent.accent, own: Color = WordmarkCream) {
+-    Box(modifier.width(width).height(width * 182f / 988f)) {
+-        Image(painterResource(R.drawable.owntv_wordmark_own), null, Modifier.fillMaxSize(), colorFilter = ColorFilter.tint(own))
+-        Image(painterResource(R.drawable.owntv_wordmark_tv), null, Modifier.fillMaxSize(), colorFilter = ColorFilter.tint(tv))
++    val name = stringResource(R.string.app_name)
++    val split = name.lastIndexOf(' ') + 1
++    Box(modifier.width(width).height(width * 182f / 988f), contentAlignment = Alignment.CenterStart) {
++        Text(
++            text = buildAnnotatedString {
++                withStyle(SpanStyle(color = own)) { append(name.substring(0, split)) }
++                withStyle(SpanStyle(color = tv)) { append(name.substring(split)) }
++            },
++            fontSize = (width.value / 8f).sp,
++            fontWeight = FontWeight.Bold,
++            maxLines = 1,
++        )
+     }
+ }
+ 
+diff --git a/app/src/main/res/values-es/interflash.xml b/app/src/main/res/values-es/interflash.xml
+new file mode 100644
+index 0000000..6d9b200
+--- /dev/null
++++ b/app/src/main/res/values-es/interflash.xml
+@@ -0,0 +1,9 @@
++<resources>
++    <string name="interflash_connecting">Conectando con Inter Flash…</string>
++    <string name="interflash_pair_instructions">Introduce este código en el panel de Inter Flash para vincular el televisor.</string>
++    <string name="interflash_retry">No se pudo verificar el servicio. Reintentando automáticamente…</string>
++    <string name="interflash_pair_title">Vincular televisor</string>
++    <string name="interflash_waiting_code">Esperando código…</string>
++    <string name="interflash_pair_code">Código: %1$s</string>
++    <string name="interflash_manual_channels">Canales Dominicanos</string>
++</resources>
+diff --git a/app/src/main/res/values/interflash.xml b/app/src/main/res/values/interflash.xml
+new file mode 100644
+index 0000000..ab54a1e
+--- /dev/null
++++ b/app/src/main/res/values/interflash.xml
+@@ -0,0 +1,9 @@
++<resources>
++    <string name="interflash_connecting">Connecting to Inter Flash…</string>
++    <string name="interflash_pair_instructions">Enter this code in the Inter Flash panel to link the television.</string>
++    <string name="interflash_retry">The service could not be verified. Retrying automatically…</string>
++    <string name="interflash_pair_title">Link television</string>
++    <string name="interflash_waiting_code">Waiting for a code…</string>
++    <string name="interflash_pair_code">Code: %1$s</string>
++    <string name="interflash_manual_channels">Dominican Channels</string>
++</resources>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index d241096..37b1fad 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -1,5 +1,6 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
++    <string name="app_name" translatable="false">Inter Flash TV</string>
+     <string name="content_search_channels">Search channels\u2026</string>
+     <string name="content_search_movies">Search movies…</string>
+     <string name="content_search_series">Search series…</string>
+diff --git a/app/src/test/java/tv/own/owntv/interflash/CatalogFingerprintTest.kt b/app/src/test/java/tv/own/owntv/interflash/CatalogFingerprintTest.kt
+new file mode 100644
+index 0000000..a6752a4
+--- /dev/null
++++ b/app/src/test/java/tv/own/owntv/interflash/CatalogFingerprintTest.kt
+@@ -0,0 +1,29 @@
++package tv.own.owntv.interflash
++
++import org.junit.Assert.*
++import org.junit.Test
++
++class CatalogFingerprintTest {
++    private val config = PanelSourceConfig(1, "xtream", "https://example.com", "viewer", "secret", null, 1)
++
++    @Test fun stableAcrossRecreatedConfigurations() {
++        assertEquals(CatalogFingerprint.of(config), CatalogFingerprint.of(config.copy()))
++    }
++    @Test fun everyCatalogChangeInvalidatesSavedRevision() {
++        val original = CatalogFingerprint.of(config)
++        listOf(config.copy(revision = 2), config.copy(url = "https://other.example.com"),
++            config.copy(username = "other"), config.copy(password = "changed"),
++            config.copy(manualUrl = "https://example.com/manual.m3u"),
++            config.copy(manualRevision = 2), config.copy(kind = "m3u"))
++            .forEach { assertNotEquals(original, CatalogFingerprint.of(it)) }
++    }
++    @Test fun credentialsAreNotStoredAsPlainText() {
++        val digest = CatalogFingerprint.of(config)
++        assertTrue(digest.matches(Regex("[0-9a-f]{64}")))
++        assertFalse(digest.contains("secret"))
++    }
++    @Test fun fieldBoundariesCannotCollide() {
++        assertNotEquals(CatalogFingerprint.of(config.copy(username = "ab", password = "c")),
++            CatalogFingerprint.of(config.copy(username = "a", password = "bc")))
++    }
++}
+diff --git a/app/src/test/java/tv/own/owntv/interflash/PanelSourceConfigTest.kt b/app/src/test/java/tv/own/owntv/interflash/PanelSourceConfigTest.kt
+new file mode 100644
+index 0000000..86d4274
+--- /dev/null
++++ b/app/src/test/java/tv/own/owntv/interflash/PanelSourceConfigTest.kt
+@@ -0,0 +1,49 @@
++package tv.own.owntv.interflash
++
++import org.json.JSONObject
++import org.junit.Assert.*
++import org.junit.Test
++
++class PanelSourceConfigTest {
++    @Test fun acceptsEmptyCatalogRevisionAndM3u() {
++        val config = PanelSourceConfig.parse(JSONObject("""{"revision":0,"kind":"m3u","url":"https://example.com/list.m3u"}"""))
++        assertEquals(0L, config.revision)
++        assertNull(config.username)
++    }
++    @Test fun acceptsXtreamCredentialsWithoutPuttingThemInUrl() {
++        val config = PanelSourceConfig.parse(JSONObject("""{"revision":4,"kind":"xtream","server":"https://example.com","username":"viewer","password":"secret"}"""))
++        assertEquals("viewer", config.username)
++        assertFalse(config.url.contains("secret"))
++    }
++    @Test fun acceptsHttpProviderAsSupportedByThePanel() {
++        val config = PanelSourceConfig.parse(JSONObject("""{"revision":2,"kind":"m3u","url":"http://example.com/list.m3u"}"""))
++        assertEquals("http://example.com/list.m3u", config.url)
++    }
++    @Test fun acceptsManualSourceAndItsIndependentRevision() {
++        val config = PanelSourceConfig.parse(JSONObject("""{"revision":5,"kind":"m3u","url":"https://example.com/list.m3u","manual_url":"https://interflash-isp-manager.up.railway.app/api/tv-native/manual/a/b.m3u","manual_revision":8}"""))
++        assertEquals(8L, config.manualRevision)
++        assertNotNull(config.manualUrl)
++    }
++    @Test fun absentManualSourceAllowsRemovalOfOldCatalog() {
++        val config = PanelSourceConfig.parse(JSONObject("""{"revision":6,"kind":"m3u","url":"https://example.com/list.m3u"}"""))
++        assertNull(config.manualUrl)
++    }
++    @Test fun rejectsManualSourceOutsidePanel() {
++        val result = runCatching { PanelSourceConfig.parse(JSONObject("""{"revision":5,"kind":"m3u","url":"https://example.com/list.m3u","manual_url":"https://example.com/manual.m3u"}""")) }
++        assertTrue(result.isFailure)
++    }
++    @Test fun rejectsInvalidOrUntrustedPayloads() {
++        val invalid = listOf(
++            """{"kind":"m3u","url":"https://example.com/list.m3u"}""",
++            """{"revision":-1,"kind":"m3u","url":"https://example.com/list.m3u"}""",
++            """{"revision":1,"kind":"m3u","url":"ftp://example.com/list.m3u"}""",
++            """{"revision":1,"kind":"m3u","url":"https://user:password@example.com/list.m3u"}""",
++            """{"revision":1,"kind":"stalker","url":"https://example.com"}""",
++            """{"revision":1,"kind":"xtream","server":"https://example.com","username":"viewer"}""",
++        )
++        invalid.forEachIndexed { index, payload ->
++            val result = runCatching { PanelSourceConfig.parse(JSONObject(payload)) }
++            assertTrue("Unsafe or incomplete payload $index must fail", result.isFailure)
++        }
++    }
++}
+diff --git a/build-interflash.sh b/build-interflash.sh
+new file mode 100644
+index 0000000..66afeb1
+--- /dev/null
++++ b/build-interflash.sh
+@@ -0,0 +1,7 @@
++#!/usr/bin/env bash
++set -euo pipefail
++project_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
++if [ "$#" -eq 0 ]; then
++  set -- :app:assembleStandardDebug
++fi
++exec bash "$project_dir/gradlew" -p "$project_dir" "-Powntv.corePath=$project_dir/../OwnTV_Core-main" -Pkotlin.compiler.execution.strategy=in-process --max-workers=1 "$@"
+diff --git a/extras/OwnTV_Master_Product_Brief.md b/extras/OwnTV_Master_Product_Brief.md
+index cc2f22a..2e62101 100644
+--- a/extras/OwnTV_Master_Product_Brief.md
++++ b/extras/OwnTV_Master_Product_Brief.md
+@@ -300,9 +300,10 @@ hiding a provider category no longer empties custom categories. Custom categorie
+ player's channel list and the Multiview picker. A typed category search is kept while a channel plays;
+ Back in the list clears it.
+ 
+-Search covers Live, Movies and Series together (3.2). Live TV
+-reopens on the category you last used, with focus on the last channel. **App startup** is per
+-profile: Home, last channel, Live Favorites, or one chosen channel.
++Search covers Live, Movies and Series together (3.2), with voice search where the device has a speech
++recogniser. Live TV reopens on the category you last used, with focus on the last channel. **App
++startup** is per profile: Home, last channel, the last channel in the TV Guide or Live TV, Live
++Favorites, or one chosen channel.
+ 
+ ---
+ 
+@@ -446,6 +447,8 @@ their group.
+   with the explicit Dark theme while Glass is off.
+ - **Remote Shortcuts** — short and long presses of spare colour, number, channel and media keys
+   mapped to 26 actions. Essential keys stay protected; the shipped CH+/− paging remains the default.
++  **Player buttons** on the same page: what holding or pressing OK opens in the full-screen player,
++  swapped channel up/down, and number keys on or off; every default is the player's own behaviour.
+ - **Stage defaults** are written once at the first start of v5.1.0 (core `applyStageDefaults`); a
+   value the user already stored is kept.
+ - **Developer** (dev-tools builds only) lives under More, not Settings.
+diff --git a/tools/i18n/safe_literals.txt b/tools/i18n/safe_literals.txt
+index 3c27e0b..0581d68 100644
+--- a/tools/i18n/safe_literals.txt
++++ b/tools/i18n/safe_literals.txt
+@@ -36,9 +36,10 @@
+ 1	performance	app/src/main/java/tv/own/owntv/MainActivity.kt	profile-id-loaded
+ 1	performance	app/src/main/java/tv/own/owntv/MainActivity.kt	profiles-loaded
+ 1	compiler	app/src/main/java/tv/own/owntv/OwnTVApp.kt	DEPRECATION
+-1	technical	app/src/main/java/tv/own/owntv/OwnTVApp.kt	ahXN00/OwnTV
++1	technical	app/src/main/java/tv/own/owntv/OwnTVApp.kt	InterFlashTV-OwnTV-
+ 1	file-path	app/src/main/java/tv/own/owntv/OwnTVApp.kt	image_cache
+ 1	performance	app/src/main/java/tv/own/owntv/OwnTVApp.kt	koin-started
++1	technical	app/src/main/java/tv/own/owntv/OwnTVApp.kt	manuel829mg-cloud/InterFlashTV
+ 3	empty	app/src/main/java/tv/own/owntv/core/i18n/LocalizedContent.kt	\0
+ 1	empty	app/src/main/java/tv/own/owntv/features/customize/CustomizeItemsScreen.kt	\0
+ 1	assertion	app/src/main/java/tv/own/owntv/features/customize/CustomizeItemsViewModel.kt	EPISODE not applicable
+@@ -875,6 +876,59 @@
+ 2	technical	app/src/main/java/tv/own/owntv/features/update/UpdateDialog.kt	**
+ 2	technical	app/src/main/java/tv/own/owntv/features/update/UpdateDialog.kt	-
+ 2	technical	app/src/main/java/tv/own/owntv/features/update/UpdateDialog.kt	•
++2	empty	app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt	\0
++1	technical	app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt	${it.length}:$it
++1	technical	app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt	%02x
++1	technical	app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt	-1:
++1	technical	app/src/main/java/tv/own/owntv/interflash/CatalogFingerprint.kt	SHA-256
++2	empty	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	\0
++1	technical	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	%02x
++1	uri	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	/api/tv-native/config
++1	uri	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	/api/tv-native/playlist/
++1	uri	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	/api/tv-native/register
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Accept
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Authorization
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Bearer $token
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Content-Type
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	POST
++1	assertion	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Panel request failed
++1	assertion	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Panel response too large
++1	assertion	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	Unsupported panel source
++1	mime	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	application/json
++1	mime	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	application/json; charset=utf-8
++1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	approved
++2	technical	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	catalog_fingerprint
++1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	code
++2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	device_token
++1	url	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	https://interflash-isp-manager.up.railway.app
++1	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	interflash-isp-manager.up.railway.app
++1	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	interflash_panel
++2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	m3u
++3	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	manual_source_id
++1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	name
++2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	source_id
++1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	token
++2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	xtream
++1	empty	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	\0
++1	uri	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	/api/tv-native/manual/
++1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	Invalid manual channel source
++1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	Invalid manual revision
++1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	Invalid panel revision
++1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	The panel source must use HTTP(S) without inline credentials
++1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	Unsupported panel source
++1	protocol	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	http
++2	protocol	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	https
++1	protocol	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	interflash-isp-manager.up.railway.app
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	kind
++1	protocol	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	m3u
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	manual_revision
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	manual_url
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	password
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	revision
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	server
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	url
++1	json	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	username
++4	protocol	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	xtream
+ 2	empty	app/src/main/java/tv/own/owntv/player/AudioNowPlayingBar.kt	\0
+ 1	technical	app/src/main/java/tv/own/owntv/player/AudioNowPlayingBar.kt	eq
+ 1	technical	app/src/main/java/tv/own/owntv/player/AudioNowPlayingBar.kt	eqBar$i
+@@ -1338,8 +1392,6 @@
+ 1	technical	app/src/main/java/tv/own/owntv/ui/components/OwnTVAvatar.kt	\0
+ 1	empty	app/src/main/java/tv/own/owntv/ui/components/SetTmdbNameDialog.kt	\0
+ 1	technical	app/src/main/java/tv/own/owntv/ui/components/SetTmdbNameDialog.kt	TMDB
+-1	performance	app/src/main/java/tv/own/owntv/ui/components/StateViews.kt	spinner
+-1	performance	app/src/main/java/tv/own/owntv/ui/components/StateViews.kt	spinnerAngle
+ 1	empty	app/src/main/java/tv/own/owntv/ui/components/StorageBrowser.kt	\0
+ 1	technical	app/src/main/java/tv/own/owntv/ui/components/TimeWheel.kt	▲
+ 1	technical	app/src/main/java/tv/own/owntv/ui/components/TimeWheel.kt	▼

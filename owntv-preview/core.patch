@@ -1,0 +1,155 @@
+diff --git a/core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt b/core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt
+index d68f620..d039dda 100644
+--- a/core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt
++++ b/core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt
+@@ -74,5 +74,7 @@ object CoreBuildInfo {
+      * [tvHome]. **Asset matching needs nothing per app**: it selects on `.apk` plus the `x86_64`
+      * marker, which both repositories' release names carry.
+      */
++    var releaseAssetPrefix: String = ""
++
+     var releaseRepo: String = "ahXN00/OwnTV"
+ }
+diff --git a/core/src/main/java/tv/own/owntv/core/repository/SourceRepository.kt b/core/src/main/java/tv/own/owntv/core/repository/SourceRepository.kt
+index cfa1c12..c86024c 100644
+--- a/core/src/main/java/tv/own/owntv/core/repository/SourceRepository.kt
++++ b/core/src/main/java/tv/own/owntv/core/repository/SourceRepository.kt
+@@ -33,6 +33,8 @@ class SourceRepository(
+ 
+     suspend fun getById(id: Long): SourceEntity? = sourceDao.getById(id)
+ 
++    suspend fun updateSource(source: SourceEntity) = sourceDao.update(source)
++
+     suspend fun addXtreamSource(
+         profileId: Long, name: String, serverUrl: String, username: String, password: String,
+         userAgent: String? = null, epgUrl: String? = null,
+diff --git a/core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt b/core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt
+new file mode 100644
+index 0000000..b8cd5a3
+--- /dev/null
++++ b/core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt
+@@ -0,0 +1,16 @@
++package tv.own.owntv.core.update
++
++import org.json.JSONArray
++
++/** Keep the TV updater on its own app and architecture when a release has several assets. */
++internal object ReleaseAssets {
++    fun compatibleUrl(assets: JSONArray, prefix: String, wantX86: Boolean): String? =
++        (0 until assets.length()).asSequence()
++            .mapNotNull { assets.optJSONObject(it) }
++            .mapNotNull { asset ->
++                val name = asset.optString("name")
++                val url = asset.optString("browser_download_url")
++                if (!name.startsWith(prefix) || !name.endsWith(".apk") || url.isBlank()) null
++                else url.takeIf { name.contains("x86_64", ignoreCase = true) == wantX86 }
++            }.firstOrNull()
++}
+diff --git a/core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt b/core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt
+index 67c8567..1d8cff7 100644
+--- a/core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt
++++ b/core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt
+@@ -116,17 +116,7 @@ class UpdateManager(
+                     // Releases carry one APK per ABI flavor (arm = generic, x86_64 suffixed). Never
+                     // silently install an APK for the wrong ABI.
+                     val wantX86 = android.os.Build.SUPPORTED_ABIS.firstOrNull() == "x86_64"
+-                    val apkUrl = (0 until assets.length())
+-                        .asSequence()
+-                        .mapNotNull { assets.optJSONObject(it) }
+-                        .mapNotNull { asset ->
+-                            val name = asset.optString("name")
+-                            val url = asset.optString("browser_download_url")
+-                            if (!name.endsWith(".apk") || url.isBlank()) return@mapNotNull null
+-                            val isX86 = name.contains("x86_64", ignoreCase = true)
+-                            if (isX86 == wantX86) url else null
+-                        }
+-                        .firstOrNull()
++                    val apkUrl = ReleaseAssets.compatibleUrl(assets, CoreBuildInfo.releaseAssetPrefix, wantX86)
+                         ?: throw NoCompatibleApkException()
+                     val info = UpdateInfo(version, notes, apkUrl)
+                     settings.recordUpdateCheck(System.currentTimeMillis())
+diff --git a/core/src/test/java/tv/own/owntv/core/update/ReleaseAssetsTest.kt b/core/src/test/java/tv/own/owntv/core/update/ReleaseAssetsTest.kt
+new file mode 100644
+index 0000000..04b3ee3
+--- /dev/null
++++ b/core/src/test/java/tv/own/owntv/core/update/ReleaseAssetsTest.kt
+@@ -0,0 +1,33 @@
++package tv.own.owntv.core.update
++
++import org.json.JSONArray
++import org.json.JSONObject
++import org.junit.Assert.*
++import org.junit.Test
++
++class ReleaseAssetsTest {
++    private fun asset(name: String, url: String = "https://example.com/$name") =
++        JSONObject().put("name", name).put("browser_download_url", url)
++    private val prefix = "InterFlashTV-OwnTV-"
++
++    @Test fun administrationApkCannotBeSelectedForTv() {
++        val assets = JSONArray().put(asset("InterFlash-admin.apk"))
++            .put(asset("InterFlashTV-OwnTV-v0.18-prueba.apk"))
++        assertEquals("https://example.com/InterFlashTV-OwnTV-v0.18-prueba.apk",
++            ReleaseAssets.compatibleUrl(assets, prefix, false))
++    }
++    @Test fun armAndEmulatorBuildsStaySeparate() {
++        val assets = JSONArray().put(asset("InterFlashTV-OwnTV-x86_64-v0.18.apk"))
++            .put(asset("InterFlashTV-OwnTV-v0.18-prueba.apk"))
++        assertTrue(ReleaseAssets.compatibleUrl(assets, prefix, true)!!.contains("x86_64"))
++        assertFalse(ReleaseAssets.compatibleUrl(assets, prefix, false)!!.contains("x86_64"))
++    }
++    @Test fun missingTvAssetDoesNotFallBackToAnotherApplication() {
++        assertNull(ReleaseAssets.compatibleUrl(JSONArray().put(asset("InterFlash-admin.apk")), prefix, false))
++    }
++    @Test fun sourceArchivesAndEmptyDownloadUrlsAreSkipped() {
++        val assets = JSONArray().put(asset("InterFlashTV-OwnTV-source.zip"))
++            .put(asset("InterFlashTV-OwnTV-v0.18.apk", ""))
++        assertNull(ReleaseAssets.compatibleUrl(assets, prefix, false))
++    }
++}
+diff --git a/tools/i18n/safe_literals.txt b/tools/i18n/safe_literals.txt
+index f42c66c..9b5f393 100644
+--- a/tools/i18n/safe_literals.txt
++++ b/tools/i18n/safe_literals.txt
+@@ -19,7 +19,7 @@
+ # category protocol: Stable protocol or comparison identifier.
+ # category technical: Reviewed non-user-facing technical literal.
+ 
+-2	empty	core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt	\0
++3	empty	core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt	\0
+ 1	technical	core/src/main/java/tv/own/owntv/core/CoreBuildInfo.kt	ahXN00/OwnTV
+ 1	log	core/src/main/java/tv/own/owntv/core/CorePerf.kt	OwnTVPerf
+ 3	technical	core/src/main/java/tv/own/owntv/core/backup/BackupContainer.kt	..
+@@ -5266,7 +5266,10 @@
+ 1	technical	core/src/main/java/tv/own/owntv/core/ui/stage/StageGlyph.kt	M8 8a4 4 0 1 0 8 0a4 4 0 1 0 -8 0zM4 21a8 8 0 0 1 16 0
+ 1	technical	core/src/main/java/tv/own/owntv/core/ui/stage/StageGlyph.kt	M9 18l6-6-6-6
+ 1	technical	core/src/main/java/tv/own/owntv/core/ui/stage/StageGlyph.kt	M9.5 2.5H14.5A2.5 2.5 0 0 1 17 5V19A2.5 2.5 0 0 1 14.5 21.5H9.5A2.5 2.5 0 0 1 7 19V5A2.5 2.5 0 0 1 9.5 2.5zM11 18.5h2
+-1	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	.apk
++1	technical	core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt	.apk
++1	json	core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt	browser_download_url
++1	json	core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt	name
++1	technical	core/src/main/java/tv/own/owntv/core/update/ReleaseAssets.kt	x86_64
+ 1	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	Accept
+ 2	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	OwnTV
+ 1	log	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	UpdateManager
+@@ -5274,11 +5277,9 @@
+ 1	mime	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	application/vnd.github+json
+ 1	json	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	assets
+ 1	json	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	body
+-1	json	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	browser_download_url
+ 1	url	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	https://api.github.com/repos/${CoreBuildInfo.releaseRepo}/releases/latest
+ 1	log	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	install cancelled by user
+ 1	log	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	install refused status=$status message=$message
+-1	json	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	name
+ 1	file-path	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	owntv-update
+ 1	file-path	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	owntv-update.apk
+ 1	json	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	tag_name
+@@ -5291,7 +5292,7 @@
+ 1	file-path	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	updates
+ 1	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	v
+ 1	log	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	wrong package ${info.packageName}
+-2	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	x86_64
++1	technical	core/src/main/java/tv/own/owntv/core/update/UpdateManager.kt	x86_64
+ 1	technical	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	Crashed $stamp on thread "${thread.name}"
+ 1	technical	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	OwnTV ${CoreBuildInfo.versionName} (${CoreBuildInfo.versionCode})
+ 1	file-path	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	diagnostics

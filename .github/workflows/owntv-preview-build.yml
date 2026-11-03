@@ -1,0 +1,91 @@
+name: Build OwnTV Inter Flash v0.18
+on:
+  push:
+    branches: [codex/owntv-v018-fast-start]
+    paths: ['owntv-preview/*', '.github/workflows/owntv-preview-build.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ahXN00/OwnTV
+          ref: eb5a947165f58e737bfe58dd0351a45406ed5363
+          path: owntv-preview/InterFlashTV-OwnTV
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ahXN00/OwnTV_Core
+          ref: 38f30e6768bab28bddf3c2a6847788ccfb84358e
+          path: owntv-preview/OwnTV_Core-main
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Apply reviewed Inter Flash changes
+        run: |
+          git -C owntv-preview/InterFlashTV-OwnTV apply --check "$GITHUB_WORKSPACE/owntv-preview/app.patch"
+          git -C owntv-preview/InterFlashTV-OwnTV apply "$GITHUB_WORKSPACE/owntv-preview/app.patch"
+          git -C owntv-preview/OwnTV_Core-main apply --check "$GITHUB_WORKSPACE/owntv-preview/core.patch"
+          git -C owntv-preview/OwnTV_Core-main apply "$GITHUB_WORKSPACE/owntv-preview/core.patch"
+      - name: Prepare installed JDK and Android SDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0" "build-tools;36.0.0" "platform-tools"
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          for folder in ['InterFlashTV-OwnTV', 'OwnTV_Core-main']:
+              root = Path('owntv-preview') / folder
+              (root / 'gradle/gradle-daemon-jvm.properties').unlink(missing_ok=True)
+              (root / 'local.properties').write_text('sdk.dir=' + os.environ['ANDROID_HOME'] + '\n')
+          PY
+      - name: Test catalog cache and build APK
+        env:
+          VERSION_CODE: '18'
+          VERSION_NAME: '0.18-owntv-preview'
+        run: |
+          bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' :app:assembleStandardDebug --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+      - name: Test updater asset selection
+        run: |
+          bash owntv-preview/InterFlashTV-OwnTV/gradlew -p owntv-preview/OwnTV_Core-main :core:testDebugUnitTest --tests 'tv.own.owntv.core.update.ReleaseAssetsTest' --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+      - name: Package reproducible source without keys
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.18.zip', 'w', zipfile.ZIP_DEFLATED) as output:
+              for folder in ['InterFlashTV-OwnTV', 'OwnTV_Core-main']:
+                  root = Path('owntv-preview') / folder
+                  for item in sorted(root.rglob('*')):
+                      if not item.is_file(): continue
+                      relative = item.relative_to(root)
+                      if any(p in {'.git', '.gradle', 'build', '__pycache__'} for p in relative.parts): continue
+                      if item.name == 'local.properties' or item.suffix in {'.jks', '.keystore'}: continue
+                      output.write(item, Path(folder) / relative)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-v0.18-build
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            owntv-preview/InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
+            InterFlashTV-OwnTV-source-v0.18.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: InterFlashTV-OwnTV-v0.18-test-reports
+          retention-days: 7
+          if-no-files-found: ignore
+          path: |
+            owntv-preview/InterFlashTV-OwnTV/app/build/test-results/
+            owntv-preview/OwnTV_Core-main/core/build/test-results/
