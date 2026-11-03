@@ -53,7 +53,7 @@ jobs:
           VERSION_CODE: '18'
           VERSION_NAME: '0.18-owntv-preview'
         run: |
-          bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' :app:assembleStandardDebug --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+          bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' :app:assembleStandardDebug --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - name: Test updater asset selection
         run: |
           bash owntv-preview/InterFlashTV-OwnTV/gradlew -p owntv-preview/OwnTV_Core-main :core:testDebugUnitTest --tests 'tv.own.owntv.core.update.ReleaseAssetsTest' --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
