@@ -1,0 +1,48 @@
+name: Build Inter Flash TV 0.24 fast start
+on:
+  push:
+    branches: [codex/autostart-fullscreen-v024]
+    paths:
+      - 'faststart.patch'
+      - '.github/workflows/owntv-faststart-build.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the v0.23 OwnTV source
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.23/InterFlashTV-OwnTV-source-v0.23.zip \
+            --output source-v0.23.zip
+          unzip -q source-v0.23.zip
+      - name: Apply the fullscreen startup change
+        run: patch -d InterFlashTV-OwnTV -p1 < faststart.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android build tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Build the installable APK
+        env:
+          VERSION_CODE: '24'
+          VERSION_NAME: '0.24-autostart-fullscreen'
+        run: |
+          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardDebug \
+            --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process \
+            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-v0.24-unsigned-build
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
