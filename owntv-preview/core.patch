@@ -156,9 +156,12 @@ index f42c66c..9b5f393 100644
 diff --git a/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt b/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
 --- a/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
 +++ b/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
-@@ -79,1 +79,1 @@
+@@ -78,4 +78,4 @@
+     /** Today's hardcoded start thresholds, and what "Pre-buffer = Off" still means. */
 -    const val DEFAULT_START_MS = 1_000
 +    const val DEFAULT_START_MS = 500
+     const val DEFAULT_RESTART_MS = 2_000
+ 
 diff --git a/core/src/test/java/tv/own/owntv/core/settings/InterFlashFastStartTest.kt b/core/src/test/java/tv/own/owntv/core/settings/InterFlashFastStartTest.kt
 new file mode 100644
 --- /dev/null
