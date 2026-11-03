@@ -1,4 +1,4 @@
-name: Build OwnTV Inter Flash v0.20
+name: Build OwnTV Inter Flash v0.21
 on:
   push:
     branches: [codex/owntv-v018-fast-start]
@@ -50,8 +50,8 @@ jobs:
           PY
       - name: Test catalog cache and build APK
         env:
-          VERSION_CODE: '20'
-          VERSION_NAME: '0.20-owntv-preview'
+          VERSION_CODE: '21'
+          VERSION_NAME: '0.21-owntv-preview'
         run: |
           bash owntv-preview/InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.*' :app:assembleStandardDebug --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - name: Test updater asset selection
@@ -62,7 +62,7 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import zipfile
-          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.20.zip', 'w', zipfile.ZIP_DEFLATED) as output:
+          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.21.zip', 'w', zipfile.ZIP_DEFLATED) as output:
               for folder in ['InterFlashTV-OwnTV', 'OwnTV_Core-main']:
                   root = Path('owntv-preview') / folder
                   for item in sorted(root.rglob('*')):
@@ -74,16 +74,16 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-OwnTV-v0.20-build
+          name: InterFlashTV-OwnTV-v0.21-build
           if-no-files-found: error
           retention-days: 7
           path: |
             owntv-preview/InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
-            InterFlashTV-OwnTV-source-v0.20.zip
+            InterFlashTV-OwnTV-source-v0.21.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: InterFlashTV-OwnTV-v0.20-test-reports
+          name: InterFlashTV-OwnTV-v0.21-test-reports
           retention-days: 7
           if-no-files-found: ignore
           path: |
