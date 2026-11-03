@@ -1,0 +1,20 @@
+name: Transfer tested OwnTV v0.20 build
+on:
+  push:
+    branches: [codex/owntv-v018-fast-start]
+    paths: ['.github/workflows/owntv-preview-transfer.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Transfer the exact tested artifact
+        run: |
+          gh run download 41625250762 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.20-build --dir build-artifact
+          gh run download 41625250762 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.20-test-reports --dir reports
+          zip -qr InterFlashTV-build-only-v0.20.zip build-artifact reports
+          gh release create build-v0.20-transfer --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title 'Build transfer only — not an installable update' --notes 'Temporary archive for local permanent signing. Do not install. The verified signed v0.20 release will replace this temporary transfer.' InterFlashTV-build-only-v0.20.zip
