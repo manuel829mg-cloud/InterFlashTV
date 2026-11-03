@@ -969,3 +969,153 @@ diff --git a/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt b/app/src/
          // Band A — the instrument. The times are the bar's own end caps now; the separate time row is
          // gone, and on live the right cap is the state badge instead of a clock.
          when {
+diff --git a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+--- a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+@@ -643,6 +643,11 @@
+         // stop button one stray D-pad press from the middle of a programme is not a kindness.
+         RecordingBadge(modifier = Modifier.align(Alignment.TopEnd))
+ 
++        if (controlsVisible && isLive && error == null) {
++            PlayerClock(watchingMs = null, compact = true,
++                modifier = Modifier.align(Alignment.TopEnd).padding(top = 20.dp, end = 28.dp))
++        }
++
+         if (controlsVisible) {
+             // Scrims: a FLAT semi-transparent panel behind the controls, feathered to transparent only at
+             // the inner edge. A pure gradient faded out exactly where the chips and the Now/Next text sit,
+@@ -655,7 +660,7 @@
+                     0.5f to hudShade(0.68f),
+                     1.0f to Color.Transparent,
+                 ))
+-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(if (isLive) 360.dp else 260.dp)
++            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(if (isLive) 280.dp else 260.dp)
+                 .gradientWash(
+                     vertical = true,
+                     0.0f to Color.Transparent,
+@@ -675,7 +680,7 @@
+                 trailing = if (error == null) liveEpgCard else null,
+                 // Hidden behind an error overlay along with the rest of the chrome: a clock ticking
+                 // over a failure message just draws the eye to the wrong thing.
+-                centre = if (error == null) {
++                centre = if (error == null && !isLive) {
+                     { PlayerClock(watchingMs = watchingWallMs?.invoke()) }
+                 } else null,
+             )
+diff --git a/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt b/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt
+--- a/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt
+@@ -88,16 +88,16 @@
+             meta.seasonNumber?.let { add(stringResource(R.string.player_season_number, it)) }
+         }.joinToString(stringResource(R.string.content_metadata_separator)).ifBlank { null }
+     }
+-    Row(modifier = modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.Top) {
++    Row(modifier = modifier.fillMaxWidth().padding(horizontal = if (isLive) 6.dp else 20.dp, vertical = if (isLive) 4.dp else 20.dp), verticalAlignment = Alignment.Top) {
+       // Left half. Equal weight to the right half, so [centre] sits on the real midpoint of the screen
+       // rather than the midpoint of whatever space the title happened to leave over.
+       Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+-        CircleButton(OwnTVIcon.BACK, size = 40, onClick = onBack)
++        CircleButton(OwnTVIcon.BACK, size = if (isLive) 30 else 40, onClick = onBack)
+         Spacer(Modifier.width(14.dp))
+         // Live: the channel logo sits with the channel NAME (identity), not with the programme — so the
+         // whole "which channel am I on" group reads as one unit however wide the TV is.
+         if (isLive) {
+-            ChannelLogo(meta.logoUrl, displayTitle, size = 46)
++            ChannelLogo(meta.logoUrl, displayTitle, size = 32)
+             Spacer(Modifier.width(14.dp))
+         }
+         Column(Modifier.weight(1f)) {
+@@ -111,7 +111,7 @@
+                     }
+                     parts.forEachIndexed { i, label ->
+                         if (i > 0) Box(Modifier.size(3.dp).clip(CircleShape).background(hudInk.copy(alpha = 0.3f)))
+-                        Text(label, style = tv.own.owntv.ui.theme.stageText(22, 700), color = hudInk.copy(alpha = 0.5f))
++                        Text(label, style = tv.own.owntv.ui.theme.stageText(if (isLive) 16 else 22, 700), color = hudInk.copy(alpha = 0.5f))
+                     }
+                     // The LIVE badge has left the top bar: live status belongs beside the timeline that
+                     // describes it, so it is now the stateful badge at the right end of the dock's band A.
+@@ -128,7 +128,7 @@
+                     meta.subtitle?.takeIf { it.isNotBlank() }?.let {
+                         Text(
+                             it,
+-                            style = tv.own.owntv.ui.theme.stageText(32, 600),
++                            style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600),
+                             color = hudInk.copy(alpha = 0.45f),
+                             fontWeight = FontWeight.SemiBold,
+                             maxLines = 1,
+@@ -136,14 +136,14 @@
+                         )
+                         Spacer(Modifier.width(10.dp))
+                     }
+-                    Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                    Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 }
+                 below?.invoke()
+             } else {
+                 vodSubtitle?.let {
+-                    Text(it, style = tv.own.owntv.ui.theme.stageText(22, 700), color = hudInk.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
++                    Text(it, style = tv.own.owntv.ui.theme.stageText(if (isLive) 16 else 22, 700), color = hudInk.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 }
+-                Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 Spacer(Modifier.height(2.dp))
+                 chipRow()
+             }
+@@ -343,7 +343,7 @@
+     // Only whether one runs: the countdown itself ticks every second, and this bar must not.
+     val sleepLeft = org.koin.compose.koinInject<SleepTimer>().remainingMs.collectAsStateWithLifecycle()
+     val sleepRunning by androidx.compose.runtime.remember { androidx.compose.runtime.derivedStateOf { sleepLeft.value != null } }
+-    Dock(modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp)) {
++    Dock(compact = isLive, modifier = modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 20.dp)) {
+         information?.invoke()
+         // Band A — the instrument. The times are the bar's own end caps now; the separate time row is
+         // gone, and on live the right cap is the state badge instead of a clock.
+diff --git a/app/src/main/java/tv/own/owntv/player/PlayerHudControls.kt b/app/src/main/java/tv/own/owntv/player/PlayerHudControls.kt
+--- a/app/src/main/java/tv/own/owntv/player/PlayerHudControls.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerHudControls.kt
+@@ -141,14 +141,14 @@
+  * as [TransportCapsule] at the dock's own 22 dp radius, so the two read as one material.
+  */
+ @Composable
+-internal fun Dock(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
++internal fun Dock(modifier: Modifier = Modifier, compact: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+     // No clip: the fill and rim already take the shape, and a clip cut off the seek bar's time bubble,
+     // which floats above band A — outside the dock.
+     Column(
+         modifier
+             .background(hudShade(0.55f), RoundedCornerShape(22.dp))
+             .border(1.dp, hudInk.copy(alpha = 0.10f), RoundedCornerShape(22.dp))
+-            .padding(horizontal = 18.dp, vertical = 12.dp),
++            .padding(horizontal = 18.dp, vertical = if (compact) 6.dp else 12.dp),
+         content = content,
+     )
+ }
+diff --git a/app/src/main/java/tv/own/owntv/player/PlayerClock.kt b/app/src/main/java/tv/own/owntv/player/PlayerClock.kt
+--- a/app/src/main/java/tv/own/owntv/player/PlayerClock.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerClock.kt
+@@ -48,7 +48,7 @@
+  * "13:00" from being read as a broken device clock, and it costs one small line.
+  */
+ @Composable
+-internal fun PlayerClock(watchingMs: Long?, modifier: Modifier = Modifier) {
++internal fun PlayerClock(watchingMs: Long?, modifier: Modifier = Modifier, compact: Boolean = false) {
+     val formatTime = rememberSystemTimeFormatter()
+     val formatDate = rememberBestDateFormatter("EEEdMMM")
+     // Minute precision is all that is displayed, so a 10 s tick keeps it honest without waking the
+@@ -56,7 +56,15 @@
+     var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+     LaunchedEffect(Unit) { while (true) { delay(10_000); nowMs = System.currentTimeMillis() } }
+ 
+-    Row(
++    if (compact) {
++        Text(
++            formatTime(nowMs),
++            modifier = modifier.clip(RoundedCornerShape(8.dp)).background(hudShade(0.55f))
++                .padding(horizontal = 8.dp, vertical = 4.dp),
++            style = tv.own.owntv.ui.theme.stageText(24, 600),
++            color = hudInk,
++        )
++    } else Row(
+         modifier
+             .clip(RoundedCornerShape(10.dp))
+             .background(hudShade(0.38f))
