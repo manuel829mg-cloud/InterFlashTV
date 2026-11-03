@@ -153,3 +153,38 @@ index f42c66c..9b5f393 100644
  1	technical	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	Crashed $stamp on thread "${thread.name}"
  1	technical	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	OwnTV ${CoreBuildInfo.versionName} (${CoreBuildInfo.versionCode})
  1	file-path	core/src/main/java/tv/own/owntv/core/util/CrashRecorder.kt	diagnostics
+diff --git a/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt b/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
+--- a/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
++++ b/core/src/main/java/tv/own/owntv/core/settings/LiveLatency.kt
+@@ -79,1 +79,1 @@
+-    const val DEFAULT_START_MS = 1_000
++    const val DEFAULT_START_MS = 500
+diff --git a/core/src/test/java/tv/own/owntv/core/settings/InterFlashFastStartTest.kt b/core/src/test/java/tv/own/owntv/core/settings/InterFlashFastStartTest.kt
+new file mode 100644
+--- /dev/null
++++ b/core/src/test/java/tv/own/owntv/core/settings/InterFlashFastStartTest.kt
+@@ -0,0 +1,24 @@
++package tv.own.owntv.core.settings
++
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++class InterFlashFastStartTest {
++    @Test fun startsEarlierWithoutShrinkingReserveOrRecovery() {
++        val control = LiveBuffer.loadControlFor(null, 0)
++        assertEquals(500, control.bufferForPlaybackMs)
++        assertEquals(8000, control.minBufferMs)
++        assertEquals(10000, control.maxBufferMs)
++        assertEquals(2000, control.bufferForPlaybackAfterRebufferMs)
++    }
++
++    @Test fun explicitPrerollIsRespected() {
++        for (seconds in listOf(2, 5, 10)) {
++            val control = LiveBuffer.loadControlFor(null, seconds)
++            assertEquals(seconds * 1000, control.bufferForPlaybackMs)
++            assertEquals(seconds * 1000, control.bufferForPlaybackAfterRebufferMs)
++            assertEquals(true, control.minBufferMs >= seconds * 1000)
++            assertEquals(2000, control.maxBufferMs - control.minBufferMs)
++        }
++    }
++}
