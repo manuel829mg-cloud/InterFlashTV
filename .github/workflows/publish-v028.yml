@@ -1,0 +1,48 @@
+name: Publish signed Inter Flash TV v0.28
+on:
+  push:
+    branches: [codex/v028-interflash-launcher]
+    paths: ['release/v028-apk-signature.json', '.github/workflows/publish-v028.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download pinned unsigned build
+        run: gh run download 41776151201 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.28-unsigned-build --dir build-artifact
+      - name: Reconstruct verified permanent signature
+        run: python release/rebuild_v028.py
+      - name: Verify signature and version
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/InterFlashTV-OwnTV-v0.28-interflash-logo.apk > cert.txt
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess, os
+          assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in Path('cert.txt').read_text()
+          text = subprocess.check_output([os.environ['ANDROID_HOME']+'/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.28-interflash-logo.apk'],text=True)
+          assert "name='com.interflash.tv.player'" in text and "versionCode='28'" in text
+          PY
+      - name: Assemble corresponding source archive
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.23/InterFlashTV-OwnTV-source-v0.23.zip -o source.zip
+          unzip -q source.zip
+          patch -d InterFlashTV-OwnTV -p1 < faststart.patch
+          patch -d InterFlashTV-OwnTV -p1 < live-controls.patch
+          patch -d OwnTV_Core-main -p1 < stability027.patch
+          python3 release/apply_brand028.py
+          zip -qr distribution/InterFlashTV-OwnTV-source-v0.28-interflash-logo.zip InterFlashTV-OwnTV OwnTV_Core-main
+      - name: Publish update
+        run: |
+          gh release create v0.28-interflash-logo --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV 0.28 — Logo Inter Flash' --notes-file release/notes-v028.md distribution/*.apk distribution/*.zip
+          gh release edit v0.28-interflash-logo --repo "$GITHUB_REPOSITORY" --draft=false --latest
