@@ -1,0 +1,335 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
+@@ -152,6 +152,7 @@
+     // used to re-query every loaded channel on every append and again every 60 seconds, which deep
+     // in a large category was a dozen chunked queries a minute to learn nothing new.
+     val nowPlaying by vm.nowPlaying.collectAsStateWithLifecycle()
++    val nextProgrammes by vm.nextProgrammes.collectAsStateWithLifecycle()
+     val loadedChannels = channels.itemSnapshotList.items.filterNotNull()
+     LaunchedEffect(loadedChannels.size, loadedChannels.firstOrNull()?.id, loadedChannels.lastOrNull()?.id) {
+         vm.ensureNowPlaying(loadedChannels)
+@@ -810,7 +811,8 @@
+                                     now = if (isPreviewed) nowNext?.now ?: nowProgrammes[channel.id] else nowProgrammes[channel.id],
+                                     nowTitle = nowPlaying[channel.id],
+                                     isFavorite = favoriteIds.contains(channel.id),
+-                                    showNumber = showChannelNumbers,
++                                    showNumber = true,
++                                    nextTitle = nextProgrammes[channel.id]?.title,
+                                     mark = playlistMarks[channel.sourceId],
+                                     modifier = Modifier.gridFocusTarget(
+                                         itemId = channel.id, index = index,
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveStage.kt
+@@ -144,14 +144,15 @@
+     onLongClick: () -> Unit,
+     modifier: Modifier = Modifier,
+     trailing: (@Composable () -> Unit)? = null,
++    nextTitle: String? = null,
+ ) {
+     StageRow(
+         onClick = onClick,
+         onLongClick = onLongClick,
+-        height = 84.mpx,
++        height = 112.mpx,
+         modifier = modifier.fillMaxWidth().onFocusChanged { if (it.hasFocus) onFocus() },
+     ) { focused ->
+-        if (showNumber) {
++        if (true) {
+             Text(
+                 channel.number?.toString().orEmpty(),
+                 style = stageText(20, 600).copy(textAlign = TextAlign.End, fontFeatureSettings = Tabular),
+@@ -163,21 +164,28 @@
+         LivePlate(channel.displayLogoUrl, 76.mpx, 54.mpx)
+         Column(Modifier.weight(1f)) {
+             Text(name.name, style = stageText(22, 700), color = if (focused) StageColors.FxText else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-            val title = now?.title ?: nowTitle
+-            if (title != null) {
++            val title = now?.title ?: nowTitle ?: stringResource(R.string.interflash_no_guide)
++            val nowLabel = stringResource(R.string.content_live_now)
++            val nowLine = stringResource(R.string.interflash_guide_line, nowLabel, title)
++            run {
+                 val left = now?.let { timeLeftText(minutesLeft(it)) }
+                 Spacer(Modifier.height(2.mpx))
+                 Text(
+                     buildAnnotatedString {
+-                        append(title)
++                        append(nowLine)
+                         if (left != null) withStyle(SpanStyle(color = (if (focused) StageColors.FxLine else StageColors.Muted).copy(alpha = 0.6f))) { append(" · $left") }
+                     },
+                     style = stageText(17, 400), color = if (focused) StageColors.FxLine else StageColors.Muted,
+                     maxLines = 1, overflow = TextOverflow.Ellipsis,
+                 )
+             }
++            Text(
++                stringResource(R.string.interflash_guide_line, stringResource(R.string.content_live_next), nextTitle ?: stringResource(R.string.interflash_no_guide)),
++                style = stageText(17, 400), color = if (focused) StageColors.FxLine else StageColors.Muted,
++                maxLines = 1, overflow = TextOverflow.Ellipsis,
++            )
+             if (now != null) {
+-                Spacer(Modifier.height(8.mpx))
++                Spacer(Modifier.height(4.mpx))
+                 StageProgress(progressOf(now), Modifier.width(300.mpx), flat = true)
+             }
+         }
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -435,6 +435,12 @@
+         epg.takeIf { id != null && id == ch?.id }
+     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+ 
++    /** Refresh only the playing channel at programme boundaries. */
++    fun refreshFixedGuide() {
++        _previewChannel.value?.let { epgReader.invalidate(it.id) }
++        epgRefresh.value++
++    }
++
+     /**
+      * "PLAYING / THEN" — what was on air at the moment being replayed. Null unless an archive is on
+      * screen, so the HUD simply omits the card the rest of the time.
+@@ -1975,6 +1981,14 @@
+         .map { found -> buildMap { found.forEach { (id, p) -> if (p != null) put(id, p) } } }
+         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+ 
++    private val _nextProgrammes = MutableStateFlow<Map<Long, tv.own.owntv.core.parser.XtEpgEntry>>(emptyMap())
++    val nextProgrammes: StateFlow<Map<Long, tv.own.owntv.core.parser.XtEpgEntry>> = _nextProgrammes
++    private suspend fun refreshNextProgrammes(channels: List<ChannelEntity>) {
++        val found = epgReader.nextProgrammesFor(channels, custom.value, epgOffset.value)
++        _nextProgrammes.value = (_nextProgrammes.value - channels.map { it.id }.toSet() + found)
++            .filterKeys { it in _nowPlaying.value }
++    }
++
+     private var nowPlayingJob: kotlinx.coroutines.Job? = null
+ 
+     private fun publishNowPlaying(resolved: Map<Long, tv.own.owntv.core.parser.XtEpgEntry?>) {
+@@ -1990,6 +2004,7 @@
+     private fun clearNowPlaying() {
+         synchronized(nowPlayingCache) { nowPlayingCache.clear() }
+         _nowPlaying.value = emptyMap()
++        _nextProgrammes.value = emptyMap()
+     }
+ 
+     /**
+@@ -2011,6 +2026,7 @@
+             // Remember the ones with no guide too, as null — otherwise they are re-queried on
+             // every single append, which is most of the cost this removes.
+             publishNowPlaying(found + missing.filter { it.id !in found }.associate { it.id to null })
++            refreshNextProgrammes(missing)
+         }
+     }
+ 
+@@ -2027,6 +2043,7 @@
+         nowPlayingJob = viewModelScope.launch {
+             val found = runCatching { nowPlayingFor(loaded) }.getOrDefault(emptyMap())
+             publishNowPlaying(found + loaded.filter { it.id !in found }.associate { it.id to null })
++            refreshNextProgrammes(loaded)
+         }
+     }
+ 
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -422,6 +422,7 @@
+     // Shares the Live list's resolved titles, so opening the overlay over a list already on screen
+     // asks for nothing, and only genuinely new channels cost a query.
+     val overlayNowPlaying by liveVm.nowPlaying.collectAsStateWithLifecycle()
++    val overlayNextProgrammes by liveVm.nextProgrammes.collectAsStateWithLifecycle()
+     LaunchedEffect(showChannelList, zapChannels) {
+         if (showChannelList && zapChannels.size > 1) liveVm.ensureNowPlaying(zapChannels)
+     }
+@@ -1538,6 +1539,7 @@
+                       title = zapOverlayTitle,
+                       showNumbers = directTuneEnabled,
+                       nowProgrammes = overlayProgrammes,
++                      nextProgrammes = overlayNextProgrammes,
+                       favoriteIds = overlayFavoriteIds,
+                       playlistMarks = overlayPlaylistMarks,
+                       alignEnd = true,
+@@ -1792,6 +1794,19 @@
+                     onToastOk = goalToast?.let { a -> { switchToMatch(a.match) } },
+                     modifier = Modifier.fillMaxSize(),
+                 )
++                if (isLiveChannel && !showChannelList && !showHistoryList) {
++                    val fixedGuide by liveVm.zapGuide.collectAsStateWithLifecycle()
++                    LaunchedEffect(previewChannel?.id) {
++                        while (true) {
++                            kotlinx.coroutines.delay(60_000L - System.currentTimeMillis() % 60_000L + 200L)
++                            liveVm.refreshFixedGuide()
++                        }
++                    }
++                    tv.own.owntv.features.shell.components.InterFlashFixedGuide(
++                        previewChannel, fixedGuide,
++                        Modifier.align(androidx.compose.ui.Alignment.BottomCenter).fillMaxWidth(),
++                    )
++                }
+                 goalToast?.let { a ->
+                     tv.own.owntv.features.sports.GoalToast(a, Modifier.align(androidx.compose.ui.Alignment.TopEnd).padding(top = 45.mpx, end = 60.mpx))
+                 }
+@@ -1901,6 +1916,7 @@
+                             currentId = previewChannel?.id,
+                             nowPlaying = overlayNowPlaying,
+                             nowProgrammes = overlayProgrammes,
++                      nextProgrammes = overlayNextProgrammes,
+                             favoriteIds = overlayFavoriteIds,
+                             playlistMarks = overlayPlaylistMarks,
+                             title = zapOverlayTitle,
+@@ -1919,6 +1935,7 @@
+                         currentId = previewChannel?.id,
+                         nowPlaying = historyNowPlaying,
+                         nowProgrammes = overlayProgrammes,
++                      nextProgrammes = overlayNextProgrammes,
+                         favoriteIds = overlayFavoriteIds,
+                         playlistMarks = overlayPlaylistMarks,
+                         watchedAt = historyWatchedAt,
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/ChannelListOverlay.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/ChannelListOverlay.kt
+@@ -79,6 +79,7 @@
+     onDismiss: () -> Unit,
+     modifier: Modifier = Modifier,
+     nowProgrammes: Map<Long, XtEpgEntry> = emptyMap(),
++    nextProgrammes: Map<Long, XtEpgEntry> = emptyMap(),
+     nowPlaying: Map<Long, String> = emptyMap(),
+     favoriteIds: Set<Long> = emptySet(),
+     playlistMarks: Map<Long, PlaylistMark> = emptyMap(),
+@@ -214,6 +215,7 @@
+                         name = ProviderTags.parse(ch.name),
+                         now = nowProgrammes[ch.id],
+                         nowTitle = nowPlaying[ch.id],
++                        nextTitle = nextProgrammes[ch.id]?.title,
+                         isFavorite = ch.id in favoriteIds,
+                         showNumber = showNumbers,
+                         mark = playlistMarks[ch.sourceId],
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/InterFlashFixedGuide.kt
+@@ -0,0 +1,38 @@
++package tv.own.owntv.features.shell.components
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import androidx.tv.material3.Text
++import tv.own.owntv.R
++import tv.own.owntv.core.database.entity.ChannelEntity
++import tv.own.owntv.core.live.EpgNowNext
++
++/** Permanent information only: never takes remote focus or controls playback. */
++@Composable
++fun InterFlashFixedGuide(channel: ChannelEntity?, guide: EpgNowNext?, modifier: Modifier = Modifier) {
++    if (channel == null) return
++    val unavailable = stringResource(R.string.interflash_no_guide)
++    Column(modifier.background(Color.Black.copy(alpha = 0.72f)).padding(horizontal = 24.dp, vertical = 8.dp)) {
++        Text(
++            channel.number?.let { stringResource(R.string.interflash_channel_identity, it.toString(), channel.name) } ?: channel.name,
++            color = Color.White, fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
++        )
++        Text(
++            stringResource(R.string.interflash_guide_line, stringResource(R.string.content_live_now), guide?.now?.title ?: unavailable),
++            color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
++        )
++        Text(
++            stringResource(R.string.interflash_guide_line, stringResource(R.string.content_live_next), guide?.next?.title ?: unavailable),
++            color = Color.White, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
++        )
++    }
++}
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/res/values/strings_interflash_guide.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="interflash_no_guide">Guide unavailable</string>
++    <string name="interflash_guide_line">%1$s: %2$s</string>
++    <string name="interflash_channel_identity">%1$s · %2$s</string>
++</resources>
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/res/values-es/strings_interflash_guide.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<resources>
++    <string name="interflash_no_guide">Sin guía</string>
++    <string name="interflash_guide_line">%1$s: %2$s</string>
++    <string name="interflash_channel_identity">%1$s · %2$s</string>
++</resources>
+--- /dev/null
++++ b/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/live/FollowingGuideProgramme.kt
+@@ -0,0 +1,9 @@
++package tv.own.owntv.core.live
++
++import tv.own.owntv.core.database.entity.EpgProgrammeEntity
++
++/** Keep the next slot in the future, after the programme currently on air. */
++internal fun followingGuideProgramme(rows: List<EpgProgrammeEntity>, at: Long): EpgProgrammeEntity? {
++    val current = rows.filter { it.startMs <= at && it.stopMs > at }.maxByOrNull { it.startMs }
++    return rows.filter { it.startMs > at && it.startMs >= (current?.stopMs ?: at) }.minByOrNull { it.startMs }
++}
+--- a/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/live/LiveEpgReader.kt
++++ b/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/live/LiveEpgReader.kt
+@@ -322,6 +322,34 @@
+      *
+      * Deliberately never fetches. See the note in [nowPlayingFor] for what happened when it did.
+      */
++    /** Batch next-programme lookup from stored guide/cache only; never fan out provider requests. */
++    suspend fun nextProgrammesFor(
++        channels: List<ChannelEntity>, cust: SectionCustomizations, globalShiftMinutes: Int,
++    ): Map<Long, XtEpgEntry> = withContext(Dispatchers.IO) {
++        val now = System.currentTimeMillis()
++        val keys = channels.mapNotNull { ch ->
++            val key = (cust.epgMatchResolver.epgIdFor(ch) ?: ch.epgChannelId)
++                ?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
++            key?.let { Triple(ch.id, it, EpgShift.minutesFor(cust, ch, globalShiftMinutes)) }
++        }
++        val result = HashMap<Long, XtEpgEntry>()
++        val priority = epgSourceStore.priority()
++        for ((shift, group) in keys.groupBy { it.third }) {
++            val at = EpgShift.toStored(now, shift)
++            val rows = group.map { it.second }.distinct().chunked(400).flatMap {
++                epgDao.programmeSummariesForChannels(it, at, at + 86_400_000L)
++            }.groupBy { it.epgChannelId }
++            for ((id, key, _) in group) {
++                val resolved = priority.resolve(rows[key].orEmpty())
++                val next = followingGuideProgramme(resolved, at)
++                if (next != null) result[id] = EpgShift.apply(next, shift).toXt()
++                else cache[id]?.takeIf { now - it.at < CACHE_TTL_MS }?.data?.next
++                    ?.takeIf { it.startMs > now }?.let { result[id] = it }
++            }
++        }
++        result
++    }
++
+     private fun cachedNow(channelId: Long, now: Long): XtEpgEntry? {
+         cache[channelId]?.takeIf { now - it.at < CACHE_TTL_MS }?.data?.now
+             ?.takeIf { it.title.isNotBlank() }?.let { return it.copy(description = null) }
+--- /dev/null
++++ b/OwnTV_Core-main/core/src/test/java/tv/own/owntv/core/live/FollowingGuideProgrammeTest.kt
+@@ -0,0 +1,25 @@
++package tv.own.owntv.core.live
++
++import org.junit.Assert.*
++import org.junit.Test
++import tv.own.owntv.core.database.entity.EpgProgrammeEntity
++
++class FollowingGuideProgrammeTest {
++    private fun p(start: Long, stop: Long) = EpgProgrammeEntity(sourceId = 1, epgChannelId = "test", startMs = start, stopMs = stop, title = "test")
++    @Test fun nextFollowsCurrentEvenWhenInputIsUnsorted() {
++        val current = p(100, 200); val next = p(200, 300)
++        assertEquals(next, followingGuideProgramme(listOf(p(300, 400), next, current), 150))
++    }
++    @Test fun overlapCannotBeAdvertisedAsNext() {
++        val next = p(200, 300)
++        assertEquals(next, followingGuideProgramme(listOf(p(100, 200), p(160, 180), next), 150))
++    }
++    @Test fun gapShowsEarliestFutureProgramme() {
++        val next = p(250, 300)
++        assertEquals(next, followingGuideProgramme(listOf(p(0, 100), next, p(300, 400)), 200))
++    }
++    @Test fun noFutureProgrammeReturnsNoInformation() {
++        assertNull(followingGuideProgramme(listOf(p(0, 100), p(100, 200)), 200))
++        assertNull(followingGuideProgramme(emptyList(), 200))
++    }
++}
