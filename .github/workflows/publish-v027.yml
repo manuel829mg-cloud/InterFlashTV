@@ -31,7 +31,7 @@ jobs:
           import subprocess, os
           assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in Path('cert.txt').read_text()
           text = subprocess.check_output([os.environ['ANDROID_HOME']+'/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.27-stability.apk'],text=True)
-          assert "name='com.interflash.tv.player'" in text and "versionCode='26'" in text
+          assert "name='com.interflash.tv.player'" in text and "versionCode='27'" in text
           PY
       - name: Assemble corresponding source archive
         run: |
