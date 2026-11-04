@@ -1,9 +1,12 @@
 --- a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
 +++ b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
-@@ -261,1 +261,1 @@
+@@ -16,1 +16,2 @@
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
+@@ -261,1 +262,1 @@
 -    var controlsVisible by remember { mutableStateOf(true) }
 +    var controlsVisible by remember { mutableStateOf(!isLive) }
-@@ -693,1 +693,7 @@
+@@ -693,1 +694,7 @@
 -                CenterControls(player, nav, isPlaying, isLive, onRewindLive, onForwardLive, timeshiftOffset, playFocus, modifier = Modifier.align(Alignment.Center))
 +                if (!isLive) {
 +                    CenterControls(player, nav, isPlaying, isLive, onRewindLive, onForwardLive, timeshiftOffset, playFocus, modifier = Modifier.align(Alignment.Center))
