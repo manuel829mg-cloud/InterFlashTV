@@ -1,0 +1,48 @@
+name: Build Inter Flash TV 0.30 simple client
+on:
+  push:
+    branches: [codex/v030-simple-client]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source and client navigation
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.23/InterFlashTV-OwnTV-source-v0.23.zip -o source.zip
+          unzip -q source.zip
+          patch -d InterFlashTV-OwnTV -p1 < faststart.patch
+          patch -d InterFlashTV-OwnTV -p1 < live-controls.patch
+          patch -d OwnTV_Core-main -p1 < stability027.patch
+          python3 release/apply_brand028.py
+          python3 release/apply_stability029.py
+          patch -d InterFlashTV-OwnTV -p1 < simple-client.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android build tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Compile client navigation
+        env:
+          VERSION_CODE: '30'
+          VERSION_NAME: '0.30-simple-client'
+        run: |
+          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - name: Package source
+        run: zip -qr source-v030.zip InterFlashTV-OwnTV OwnTV_Core-main -x '*/build/*' '*/.gradle/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v030-unsigned-review
+          path: |
+            InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+            source-v030.zip
+          if-no-files-found: error
