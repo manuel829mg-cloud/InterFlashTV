@@ -1,0 +1,15 @@
+diff --git a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+--- a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -629,7 +629,10 @@ class LiveViewModel(
+         .combine(orderedContexts) { args, _ -> args }
+         .flatMapLatest { (key, c, query, sort, cs) ->
+             // Customizations are applied to each fresh PagingData inside the pager chain — a PagingData
+             // that the UI already collected must never be re-transformed (Paging forbids re-collection,
+-            Pager(PagingConfig(pageSize = 80, prefetchDistance = 40, initialLoadSize = 120, maxSize = 400)) {
++            // Keep entering large channel folders light on Android TV devices with limited memory.
++            // Continue preloading ahead of focus, but start with a smaller window instead of
++            // materializing 120 channels and scheduling their guide lookups before the list settles.
++            Pager(PagingConfig(pageSize = 48, prefetchDistance = 24, initialLoadSize = 48, maxSize = 240)) {
+                 pagingSource(key, c, query, sort)
+             }.flow.map { paging ->
