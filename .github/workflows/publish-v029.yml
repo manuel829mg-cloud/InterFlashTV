@@ -1,0 +1,42 @@
+name: Publish verified Inter Flash TV 0.29
+on:
+  push:
+    branches: [codex/v029-live-buffer]
+    paths: ['.github/workflows/publish-v029.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download pinned build
+        run: gh run download 41829536298 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-OwnTV-v0.29-unsigned-build --dir build-artifact
+      - name: Reconstruct verified signature
+        run: |
+          python3 release/rebuild_v029.py
+          cp build-artifact/source-v029.zip distribution/InterFlashTV-OwnTV-source-v0.29-stability.zip
+      - name: Verify signature and version
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/InterFlashTV-OwnTV-v0.29-stability.apk > cert.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess, os
+          assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in Path('cert.txt').read_text()
+          text = subprocess.check_output([os.environ['ANDROID_HOME']+'/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.29-stability.apk'],text=True)
+          assert "name='com.interflash.tv.player'" in text and "versionCode='29'" in text
+          print('Verified package, version 29 and permanent certificate.')
+          PY
+      - name: Publish update
+        run: |
+          gh release create v0.29-stability --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV 0.29 — Estabilidad' --notes-file release/notes-v029.md distribution/*.apk distribution/*.zip
+          gh release edit v0.29-stability --repo "$GITHUB_REPOSITORY" --draft=false --latest
