@@ -86,14 +86,20 @@
      /**
       * "PLAYING / THEN" — what was on air at the moment being replayed. Null unless an archive is on
       * screen, so the HUD simply omits the card the rest of the time.
-@@ -1975,6 +1981,14 @@
+@@ -1975,6 +1981,20 @@
          .map { found -> buildMap { found.forEach { (id, p) -> if (p != null) put(id, p) } } }
          .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
  
 +    private val _nextProgrammes = MutableStateFlow<Map<Long, tv.own.owntv.core.parser.XtEpgEntry>>(emptyMap())
 +    val nextProgrammes: StateFlow<Map<Long, tv.own.owntv.core.parser.XtEpgEntry>> = _nextProgrammes
 +    private suspend fun refreshNextProgrammes(channels: List<ChannelEntity>) {
-+        val found = epgReader.nextProgrammesFor(channels, custom.value, epgOffset.value)
++        val found = try {
++            epgReader.nextProgrammesFor(channels, custom.value, epgOffset.value)
++        } catch (cancelled: kotlinx.coroutines.CancellationException) {
++            throw cancelled
++        } catch (_: Exception) {
++            return
++        }
 +        _nextProgrammes.value = (_nextProgrammes.value - channels.map { it.id }.toSet() + found)
 +            .filterKeys { it in _nowPlaying.value }
 +    }
@@ -101,7 +107,7 @@
      private var nowPlayingJob: kotlinx.coroutines.Job? = null
  
      private fun publishNowPlaying(resolved: Map<Long, tv.own.owntv.core.parser.XtEpgEntry?>) {
-@@ -1990,6 +2004,7 @@
+@@ -1990,6 +2010,7 @@
      private fun clearNowPlaying() {
          synchronized(nowPlayingCache) { nowPlayingCache.clear() }
          _nowPlaying.value = emptyMap()
@@ -109,7 +115,7 @@
      }
  
      /**
-@@ -2011,6 +2026,7 @@
+@@ -2011,6 +2032,7 @@
              // Remember the ones with no guide too, as null — otherwise they are re-queried on
              // every single append, which is most of the cost this removes.
              publishNowPlaying(found + missing.filter { it.id !in found }.associate { it.id to null })
@@ -117,7 +123,7 @@
          }
      }
  
-@@ -2027,6 +2043,7 @@
+@@ -2027,6 +2049,7 @@
          nowPlayingJob = viewModelScope.launch {
              val found = runCatching { nowPlayingFor(loaded) }.getOrDefault(emptyMap())
              publishNowPlaying(found + loaded.filter { it.id !in found }.associate { it.id to null })
