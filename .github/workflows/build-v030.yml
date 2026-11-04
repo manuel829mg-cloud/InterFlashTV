@@ -2,6 +2,7 @@ name: Build Inter Flash TV 0.30 simple client
 on:
   push:
     branches: [codex/v030-simple-client]
+    paths: ['simple-client.patch', '.github/workflows/build-v030.yml']
 permissions:
   contents: read
 jobs:
@@ -22,6 +23,9 @@ jobs:
           python3 release/apply_brand028.py
           python3 release/apply_stability029.py
           patch -d InterFlashTV-OwnTV -p1 < simple-client.patch
+          cd InterFlashTV-OwnTV
+          python3 tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt --text favourite --category protocol
+          python3 tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt --text '' --category empty
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
