@@ -1,0 +1,14 @@
+--- a/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
++++ b/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+@@ -261,1 +261,1 @@
+-    var controlsVisible by remember { mutableStateOf(true) }
++    var controlsVisible by remember { mutableStateOf(!isLive) }
+@@ -693,1 +693,7 @@
+-                CenterControls(player, nav, isPlaying, isLive, onRewindLive, onForwardLive, timeshiftOffset, playFocus, modifier = Modifier.align(Alignment.Center))
++                if (!isLive) {
++                    CenterControls(player, nav, isPlaying, isLive, onRewindLive, onForwardLive, timeshiftOffset, playFocus, modifier = Modifier.align(Alignment.Center))
++                } else {
++                    // Keep remote focus available without drawing a transport button over live TV.
++                    Box(Modifier.align(Alignment.BottomStart).size(1.dp)
++                        .focusRequester(playFocus).focusable())
++                }
