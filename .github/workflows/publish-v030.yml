@@ -1,0 +1,42 @@
+name: Publish verified Inter Flash TV 0.30
+on:
+  push:
+    branches: [codex/v030-simple-client]
+    paths: ['.github/workflows/publish-v030.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download pinned build
+        run: gh run download 41839219243 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-v030-unsigned-review --dir build-artifact
+      - name: Reconstruct verified signature
+        run: |
+          python3 release/rebuild_v030.py
+          cp build-artifact/source-v030.zip distribution/InterFlashTV-OwnTV-source-v0.30-simple-client.zip
+      - name: Verify signature and version
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/InterFlashTV-OwnTV-v0.30-simple-client.apk > cert.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess, os
+          assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in Path('cert.txt').read_text()
+          text = subprocess.check_output([os.environ['ANDROID_HOME']+'/build-tools/36.0.0/aapt', 'dump', 'badging', 'distribution/InterFlashTV-OwnTV-v0.30-simple-client.apk'],text=True)
+          assert "name='com.interflash.tv.player'" in text and "versionCode='30'" in text
+          print('Verified package, version 30 and permanent certificate.')
+          PY
+      - name: Publish update
+        run: |
+          gh release create v0.30-simple-client --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV 0.30 — Modo sencillo' --notes-file release/notes-v030.md distribution/*.apk distribution/*.zip
+          gh release edit v0.30-simple-client --repo "$GITHUB_REPOSITORY" --draft=false --latest
