@@ -44,7 +44,7 @@ jobs:
         run: |
           bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease \
             --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
-            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
       - uses: actions/upload-artifact@v4
         with:
           name: InterFlashTV-OwnTV-v0.26-unsigned-build
