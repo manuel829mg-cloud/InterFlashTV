@@ -21,11 +21,13 @@
      val noSourceLabel = stringResource(R.string.shell_no_source)
      val subtitleLoadFailed = stringResource(R.string.content_subtitle_load_failed)
  
-@@ -444,6 +445,18 @@
+@@ -444,6 +445,20 @@
      LaunchedEffect(Unit) {
          if (playerMode != PlayerMode.NONE) { onStartupSettled(); return@LaunchedEffect }
          val pid = resumeSettings.activeProfileId.first()
 +        if (clientMode) {
++            liveVm.setSearchQuery("")
++            liveVm.select(tv.own.owntv.core.live.LiveKey.All)
 +            onSelectSection(MainSection.LIVE_TV)
 +            restoreFocus = true
 +            val channel = liveVm.lastWatchedLiveChannel()?.takeIf { liveVm.isVisibleToActiveProfile(it) }
@@ -40,7 +42,7 @@
          when (val startupMode = resumeSettings.startupMode(pid).first()) {
              tv.own.owntv.core.settings.StartupMode.LAST_CHANNEL,
              // The user asked for the saved “last channel · TV Guide” startup to open the channel
-@@ -554,7 +567,7 @@
+@@ -554,7 +569,7 @@
          // A new stream is opening — make sure any Audio Mode video-off state is cleared, else mpv keeps
          // `vid=no` and the new item would play with no picture.
          player.exitAudioOnly(); runCatching { liveVm.previewEngine.exitAudioOnly() }
@@ -49,7 +51,7 @@
      }
      // Restore video output on both engines (no-op unless we were in Audio Mode). mpv `vid=auto` /
      // ExoPlayer surface is re-attached by the surface remount right after.
-@@ -746,7 +759,8 @@
+@@ -746,7 +761,8 @@
          }
          Unit
      }
@@ -59,7 +61,7 @@
          if (playerMode == PlayerMode.FULLSCREEN) dockPlayer()
          if (section == MainSection.SEARCH) {
              searchVm.setQuery("")
-@@ -888,6 +902,12 @@
+@@ -888,6 +904,12 @@
  
      BackHandler {
          when {
@@ -72,7 +74,7 @@
              playerMode == PlayerMode.FULLSCREEN -> exitPlayer()
              showAvatarPicker -> showAvatarPicker = false
              showPlaylistPicker -> showPlaylistPicker = false
-@@ -1041,7 +1061,14 @@
+@@ -1041,7 +1063,14 @@
                  .focusGroup(),
          ) {
            if (isOffline) OfflineBanner()
@@ -88,7 +90,7 @@
                if (trendingSearchActive || section == MainSection.SEARCH) {
                    searchVm.setQuery("")
                    trendingSearchActive = false
-@@ -1147,8 +1174,11 @@
+@@ -1147,8 +1176,11 @@
                              playlistLabel = playlistLabel,
                              avatarId = avatarId,
                              avatarPath = avatarPath,
@@ -102,7 +104,7 @@
                              onOpenSettings = { group, search ->
                                  settingsStart = tv.own.owntv.features.shell.components.SettingsStart(group, search)
                                  onSelectSection(MainSection.SETTINGS)
-@@ -1389,7 +1419,7 @@
+@@ -1389,7 +1421,7 @@
                  },
                  audioBar = audioBarContent,
                  playlistLabel = playlistLabel,
@@ -111,7 +113,7 @@
                  onPlaylistClick = { showPlaylistPicker = true },
                  // Out of reach from deep in a list: from the rail or on Home only.
                  pillsFocusable = focusedLayer == ShellLayer.SIDEBAR || clusterFocused || selectedSection == MainSection.HOME,
-@@ -1411,8 +1441,8 @@
+@@ -1411,8 +1443,8 @@
                  detail = { section -> railDetail(section, railDetails) },
                  profileName = profileName.ifBlank { stringResource(R.string.common_own_tv_user) },
                  profileLine = stringResource(R.string.shell_rail_profile_line, playlistLabel),
@@ -122,7 +124,7 @@
                  avatarId = avatarId,
                  avatarPath = avatarPath,
                  selectedItemFocusRequester = sidebarFocus,
-@@ -1643,7 +1673,7 @@
+@@ -1643,7 +1675,7 @@
                  }
                  PlayerHud(
                      player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
@@ -141,7 +143,17 @@
      val vm: LiveViewModel = koinViewModel()
      // Locking and unlocking are one pair: the pin belongs to this screen's lifetime, not to the view
      // model's. On the television that view model is a single instance shared with the browse section,
-@@ -551,7 +552,7 @@
+@@ -119,7 +120,8 @@
+             onDispose { vm.unlock() }
+         }
+     }
+-    val railItems by vm.railItems.collectAsStateWithLifecycle()
++    val allRailItems by vm.railItems.collectAsStateWithLifecycle()
++    val railItems = if (clientMode) allRailItems.filter { it.key != LiveKey.History } else allRailItems
+     val providerNames by vm.providerNames.collectAsStateWithLifecycle()
+     val railFocus = remember { FocusRequester() }
+     val selectedKey by vm.selectedKey.collectAsStateWithLifecycle()
+@@ -551,7 +553,7 @@
      }
      val onCategoryLongSelect: (Int) -> Unit = { idx ->
          railItems.getOrNull(idx)?.let { item ->
@@ -150,7 +162,15 @@
                  contextCategory = item
                  contextCategoryKey = item.key
              }
-@@ -749,7 +750,7 @@
+@@ -712,6 +714,7 @@
+                     }
+                     .focusGroup(),
+             ) {
++                if (!clientMode) {
+                 Row(
+                     verticalAlignment = Alignment.CenterVertically,
+                     horizontalArrangement = Arrangement.spacedBy(8.mpx),
+@@ -749,10 +752,11 @@
                      tv.own.owntv.ui.stage.StageTool(
                          text = stringResource(R.string.content_live_guide_view),
                          icon = OwnTVIcon.GRID,
@@ -159,7 +179,11 @@
                      )
                  }
                  Spacer(Modifier.height(20.mpx))
-@@ -1226,6 +1227,7 @@
++                }
+                 if (channels.itemCount == 0) {
+                     Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                         Text(
+@@ -1226,6 +1230,7 @@
              add(MenuAction("remove_from_category", stringResource(R.string.content_remove_from_category), OwnTVIcon.CLOSE, group = organise, onClick = onRemoveFromCategory))
          }
      }
@@ -167,7 +191,7 @@
      val values = mapOf("catchup" to catchupValue, "match_epg" to matchValue, "epg_offset" to offsetValue)
      val groupLabels = listOf(
          stringResource(R.string.content_menu_group_watch),
-@@ -1254,7 +1256,7 @@
+@@ -1254,7 +1259,7 @@
                      },
                  )
                  var previousGroup: Int? = null
