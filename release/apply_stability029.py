@@ -26,3 +26,7 @@ assert 'prefs[Keys.LIVE_LATENCY_CUSTOM_SECS] = 30' in s
 assert 'prefs[Keys.LIVE_PREROLL_SECS] = 5' in s
 p.write_text(s)
 print('Applied v0.29: 30s live buffer, 5s initial/refill reserve; one-time upgrade migration.')
+
+# Preference keys are technical identifiers, never displayed or translated.
+import subprocess
+subprocess.run(['python3', 'tools/i18n/check_hardcoded_strings.py', 'classify-safe', '--path', 'core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt', '--text', 'interflash_stability_029', '--category', 'pref'], cwd='OwnTV_Core-main', check=True)
