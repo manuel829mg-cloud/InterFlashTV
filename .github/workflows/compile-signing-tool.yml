@@ -1,0 +1,25 @@
+name: Compile local APK verification utility
+on:
+  push:
+    branches: [codex/v029-live-buffer]
+    paths: ['.github/workflows/compile-signing-tool.yml']
+permissions:
+  contents: read
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: |
+          curl -fLsS https://dl.google.com/dl/android/maven2/com/android/tools/build/apksig/8.9.2/apksig-8.9.2.jar -o apksig.jar
+          javac -cp apksig.jar release/SignApk.java
+      - uses: actions/upload-artifact@v4
+        with:
+          name: local-signing-tool
+          path: release/SignApk.class
