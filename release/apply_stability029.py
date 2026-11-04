@@ -29,4 +29,4 @@ print('Applied v0.29: 30s live buffer, 5s initial/refill reserve; one-time upgra
 
 # Preference keys are technical identifiers, never displayed or translated.
 import subprocess
-subprocess.run(['python3', 'tools/i18n/check_hardcoded_strings.py', 'classify-safe', '--path', 'core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt', '--text', 'interflash_stability_029', '--category', 'pref'], cwd='OwnTV_Core-main', check=True)
+subprocess.run(['python3', 'tools/i18n/check_hardcoded_strings.py', 'classify-safe', '--path', 'core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt', '--text', 'interflash_stability_029', '--category', 'preference-key'], cwd='OwnTV_Core-main', check=True)
