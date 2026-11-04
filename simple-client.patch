@@ -64,7 +64,7 @@
      BackHandler {
          when {
 +            clientMode && playerMode == PlayerMode.FULLSCREEN -> {
-+                exitPlayer()
++                dockPlayer()
 +                onSelectSection(MainSection.LIVE_TV)
 +                restoreFocus = true
 +            }
@@ -111,6 +111,26 @@
                  onPlaylistClick = { showPlaylistPicker = true },
                  // Out of reach from deep in a list: from the rail or on Home only.
                  pillsFocusable = focusedLayer == ShellLayer.SIDEBAR || clusterFocused || selectedSection == MainSection.HOME,
+@@ -1411,8 +1441,8 @@
+                 detail = { section -> railDetail(section, railDetails) },
+                 profileName = profileName.ifBlank { stringResource(R.string.common_own_tv_user) },
+                 profileLine = stringResource(R.string.shell_rail_profile_line, playlistLabel),
+-                onSwitchProfile = onSwitchProfile,
+-                onPickAvatar = { showAvatarPicker = true },
++                onSwitchProfile = { if (!clientMode) onSwitchProfile() },
++                onPickAvatar = { InterFlashClientMode.administrator = true; onSelectSection(MainSection.SETTINGS) },
+                 avatarId = avatarId,
+                 avatarPath = avatarPath,
+                 selectedItemFocusRequester = sidebarFocus,
+@@ -1643,7 +1673,7 @@
+                 }
+                 PlayerHud(
+                     player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
+-                    onBack = exitPlayer,
++                    onBack = { if (clientMode) { dockPlayer(); onSelectSection(MainSection.LIVE_TV) } else exitPlayer() },
+                     onPip = dockPlayer, // PiP/dock works for live on either engine now
+                     onAudioMode = toAudioMode,
+                     // The channel-list overlay draws ABOVE the HUD; while it's open the HUD goes inert so
 --- a/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
 +++ b/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
 @@ -107,6 +107,7 @@
@@ -158,7 +178,12 @@
                      tv.own.owntv.ui.stage.StageMenuItem(
 --- a/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
 +++ b/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
-@@ -161,7 +161,9 @@
+@@ -157,11 +157,14 @@
+     var hasFocus by remember { mutableStateOf(false) }
+     // Search, Settings and More all land on a rail item: Search has its own, Settings lives behind More.
+     val focusSection = when {
++        !tv.own.owntv.features.shell.InterFlashClientMode.administrator -> MainSection.LIVE_TV
+         selected == MainSection.SETTINGS || selected == MainSection.MORE -> MainSection.MORE
          selected == MainSection.SEARCH || selected in visibleSections -> selected
          else -> StageRailOrder.firstOrNull { it in visibleSections } ?: MainSection.MORE
      }
@@ -169,7 +194,7 @@
  
      // Slide in from the edge (320 ms, or a snap with animations off): the capsule when it leaves
      // HIDDEN, the open rail each time it opens.
-@@ -253,8 +255,8 @@
+@@ -253,8 +256,8 @@
              }
              items.forEach { section ->
                  RailItem(
