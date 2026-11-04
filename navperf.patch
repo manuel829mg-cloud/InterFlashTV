@@ -1,0 +1,9 @@
+diff --git a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+--- a/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -632,1 +632,4 @@
+-            Pager(PagingConfig(pageSize = 80, prefetchDistance = 40, initialLoadSize = 120, maxSize = 400)) {
++            // Keep entering large channel folders light on Android TV devices with limited memory.
++            // Continue preloading ahead of focus, but start with a smaller window instead of
++            // materializing 120 channels and scheduling their guide lookups before the list settles.
++            Pager(PagingConfig(pageSize = 48, prefetchDistance = 24, initialLoadSize = 48, maxSize = 240)) {
