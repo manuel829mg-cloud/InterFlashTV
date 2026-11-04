@@ -1,0 +1,43 @@
+name: Build Inter Flash TV 0.31 clean sidebar
+on:
+  push:
+    branches: [codex/v031-clean-rail]
+    paths: ['release/apply_clean031.py', '.github/workflows/build-v031.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact v0.30 source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.30-simple-client/InterFlashTV-OwnTV-source-v0.30-simple-client.zip -o source.zip
+          unzip -q source.zip
+          python3 release/apply_clean031.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android build tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Compile APK
+        env:
+          VERSION_CODE: '31'
+          VERSION_NAME: '0.31-clean-rail'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - name: Package source
+        run: zip -qr source-v031.zip InterFlashTV-OwnTV OwnTV_Core-main -x '*/build/*' '*/.gradle/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v031-unsigned
+          path: |
+            InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+            source-v031.zip
+          if-no-files-found: error
