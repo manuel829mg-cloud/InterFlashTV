@@ -1,0 +1,76 @@
+name: Build Inter Flash TV 0.25 smooth navigation
+on:
+  push:
+    branches: [codex/owntv-v025-nav-smooth]
+    paths:
+      - 'navperf.patch'
+      - '.github/workflows/owntv-navperf-build.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the v0.23 OwnTV source
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.23/InterFlashTV-OwnTV-source-v0.23.zip \
+            --output source-v0.23.zip
+          unzip -q source-v0.23.zip
+      - name: Apply the existing v0.24 startup behavior and paging optimization
+        run: |
+          patch -d InterFlashTV-OwnTV -p1 < faststart.patch
+          patch -d InterFlashTV-OwnTV -p1 < navperf.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android build tools
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+          printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > InterFlashTV-OwnTV/local.properties
+          printf 'sdk.dir=%s\\n' "$ANDROID_HOME" > OwnTV_Core-main/local.properties
+      - name: Build the Android TV APK
+        env:
+          VERSION_CODE: '25'
+          VERSION_NAME: '0.25-nav-smooth'
+        run: |
+          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardDebug \
+            --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
+            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
+      - name: Package reproducible source without local keys or build output
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import zipfile
+          roots = ['InterFlashTV-OwnTV', 'OwnTV_Core-main']
+          with zipfile.ZipFile('InterFlashTV-OwnTV-source-v0.25-nav-smooth.zip', 'w', zipfile.ZIP_DEFLATED) as output:
+              for folder in roots:
+                  root = Path(folder)
+                  for item in sorted(root.rglob('*')):
+                      if not item.is_file():
+                          continue
+                      relative = item.relative_to(root)
+                      if any(p in {'.git', '.gradle', 'build', '__pycache__'} for p in relative.parts):
+                          continue
+                      if item.name == 'local.properties' or item.suffix in {'.jks', '.keystore'}:
+                          continue
+                      output.write(item, Path(folder) / relative)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-v0.25-nav-smooth-unsigned
+          path: |
+            InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
+            InterFlashTV-OwnTV-source-v0.25-nav-smooth.zip
+          if-no-files-found: error
+          retention-days: 7
