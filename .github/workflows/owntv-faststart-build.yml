@@ -42,12 +42,12 @@ jobs:
           VERSION_CODE: '26'
           VERSION_NAME: '0.26-live-clean'
         run: |
-          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardDebug \
+          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease \
             --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
             -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=768m -Dfile.encoding=UTF-8'
       - uses: actions/upload-artifact@v4
         with:
           name: InterFlashTV-OwnTV-v0.26-unsigned-build
-          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/debug/*.apk
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
           if-no-files-found: error
           retention-days: 7
