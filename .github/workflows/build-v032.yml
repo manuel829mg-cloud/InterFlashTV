@@ -1,0 +1,44 @@
+name: Build Inter Flash TV 0.32 clean sidebar
+on:
+  push:
+    branches: [codex/v032-fixed-guide]
+    paths: ['fixed-guide032.patch', '.github/workflows/build-v032.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact v0.30 source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch -p1 < fixed-guide032.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android build tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Compile APK
+        env:
+          VERSION_CODE: '32'
+          VERSION_NAME: '0.32-fixed-guide'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :OwnTV_Core-main:core:testReleaseUnitTest --tests tv.own.owntv.core.live.FollowingGuideProgrammeTest --tests tv.own.owntv.core.epg.EpgShiftTest :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - name: Package source
+        run: zip -qr source-v032.zip InterFlashTV-OwnTV OwnTV_Core-main -x '*/build/*' '*/.gradle/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v032-unsigned
+          path: |
+            InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+            source-v032.zip
+            OwnTV_Core-main/core/build/test-results/testReleaseUnitTest/*.xml
+          if-no-files-found: error
