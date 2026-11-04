@@ -1,4 +1,4 @@
-name: Build Inter Flash TV 0.32 clean sidebar
+name: Build Inter Flash TV 0.32 fixed guide
 on:
   push:
     branches: [codex/v032-fixed-guide]
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Prepare exact v0.30 source
+      - name: Prepare exact v0.31 source
         run: |
           curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
           unzip -q source.zip
@@ -31,7 +31,7 @@ jobs:
         env:
           VERSION_CODE: '32'
           VERSION_NAME: '0.32-fixed-guide'
-        run: bash InterFlashTV-OwnTV/build-interflash.sh :OwnTV_Core-main:core:testReleaseUnitTest --tests tv.own.owntv.core.live.FollowingGuideProgrammeTest --tests tv.own.owntv.core.epg.EpgShiftTest :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :OwnTV_Core-main:core:testDebugUnitTest --tests tv.own.owntv.core.live.FollowingGuideProgrammeTest --tests tv.own.owntv.core.epg.EpgShiftTest :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
       - name: Package source
         run: zip -qr source-v032.zip InterFlashTV-OwnTV OwnTV_Core-main -x '*/build/*' '*/.gradle/*'
       - uses: actions/upload-artifact@v4
@@ -40,5 +40,5 @@ jobs:
           path: |
             InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
             source-v032.zip
-            OwnTV_Core-main/core/build/test-results/testReleaseUnitTest/*.xml
+            OwnTV_Core-main/core/build/test-results/testDebugUnitTest/*.xml
           if-no-files-found: error
