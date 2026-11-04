@@ -1,0 +1,67 @@
+--- a/core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt
++++ b/core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt
+@@ -369,6 +369,7 @@
+         val LIVE_TUNE_TIMEOUT_SECS = intPreferencesKey("live_tune_timeout_secs")
+         // v4.1.6 one-shot: reset live latency to the safe Balanced preset. Subsequent user changes are
+         // preserved across every later update.
++        val INTERFLASH_STABILITY_027 = booleanPreferencesKey("interflash_stability_027")
+         val LIVE_LATENCY_RESET_416 = booleanPreferencesKey("live_latency_reset_416")
+         // Stage (2026-09-30): moved a saved System Sans to Plus Jakarta Sans once. Device-local, never backed up.
+         val FONT_JAKARTA_MIGRATED = booleanPreferencesKey("font_jakarta_migrated")
+@@ -2752,10 +2753,10 @@
+     val liveLatencyMode: Flow<String> = prefsFlow { prefs ->
+         // Also report Balanced before the startup migration coroutine completes, so an auto-resumed
+         // channel cannot briefly reuse an unsafe low/custom latency on the first 4.1.6 launch.
+-        if (prefs[Keys.LIVE_LATENCY_RESET_416] == true) {
++        if (prefs[Keys.INTERFLASH_STABILITY_027] == true) {
+             prefs[Keys.LIVE_LATENCY_MODE] ?: LiveLatency.DEFAULT.name
+         } else {
+-            LiveLatency.BALANCED.name
++            LiveLatency.STABLE.name
+         }
+     }
+ 
+@@ -2777,6 +2778,7 @@
+         runCatching { migrateAutoFrameRate416() }
+         runCatching { migrateAutoFrameRatePre12() }
+         runCatching { migrateLiveLatency416() }
++        applyInterFlashStability027()
+         runCatching { migrateSystemSansToJakarta() }
+     }
+ 
+@@ -2832,6 +2834,17 @@
+         }
+     }
+ 
++    /** Apply the requested stability preset once on new installs and upgrades. */
++    suspend fun applyInterFlashStability027() {
++        context.dataStore.edit { prefs ->
++            if (prefs[Keys.INTERFLASH_STABILITY_027] == true) return@edit
++            prefs[Keys.LIVE_LATENCY_MODE] = LiveLatency.STABLE.name
++            prefs[Keys.LIVE_PREROLL_SECS] = 2
++            prefs[Keys.LIVE_LATENCY_RESET_416] = true
++            prefs[Keys.INTERFLASH_STABILITY_027] = true
++        }
++    }
++
+     /** Custom live buffer seconds, used when the preset is [LiveLatency.CUSTOM]. */
+     val liveLatencyCustomSecs: Flow<Int> = prefsFlow { prefs ->
+         LiveBuffer.clampCustom(prefs[Keys.LIVE_LATENCY_CUSTOM_SECS] ?: LiveBuffer.CUSTOM_DEFAULT)
+@@ -2847,7 +2860,9 @@
+      * start thresholds. A per-playlist override lives on `SourceEntity.livePrerollSecs`.
+      */
+     val livePrerollSecs: Flow<Int> = prefsFlow { prefs ->
+-        (prefs[Keys.LIVE_PREROLL_SECS] ?: LiveBuffer.PREROLL_OFF).coerceIn(0, 30)
++        if (prefs[Keys.INTERFLASH_STABILITY_027] == true) {
++            (prefs[Keys.LIVE_PREROLL_SECS] ?: 2).coerceIn(0, 30)
++        } else 2
+     }
+ 
+     suspend fun setLivePrerollSecs(secs: Int) {
+--- a/tools/i18n/safe_literals.txt
++++ b/tools/i18n/safe_literals.txt
+@@ -6626,3 +6626,4 @@
+ 1	log	player-core/src/main/java/tv/own/owntv/player/VolumeBoost.kt	volume boost failed: ${it.javaClass.simpleName}
+ 1	log	player-core/src/main/java/tv/own/owntv/player/VolumeBoost.kt	volume boost unavailable: ${it.javaClass.simpleName}
+ 1	log	player-core/src/main/java/tv/own/owntv/player/ZapTiming.kt	(zap key press to first frame ${it}ms)
++1	preference-key	core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt	interflash_stability_027
