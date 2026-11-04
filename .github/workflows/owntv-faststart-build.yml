@@ -1,11 +1,12 @@
-name: Build Inter Flash TV 0.27 fast start
+name: Build Inter Flash TV 0.28 fast start
 on:
   push:
-    branches: [codex/v027-stability-defaults]
+    branches: [codex/v028-interflash-launcher]
     paths:
       - 'faststart.patch'
       - 'live-controls.patch'
       - 'stability027.patch'
+      - 'release/apply_brand028.py'
       - '.github/workflows/owntv-faststart-build.yml'
 permissions:
   contents: read
@@ -28,6 +29,7 @@ jobs:
           patch -d InterFlashTV-OwnTV -p1 < faststart.patch
           patch -d InterFlashTV-OwnTV -p1 < live-controls.patch
           patch -d OwnTV_Core-main -p1 < stability027.patch
+          python3 release/apply_brand028.py
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -41,15 +43,15 @@ jobs:
           "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
       - name: Build the installable APK
         env:
-          VERSION_CODE: '27'
-          VERSION_NAME: '0.27-stability'
+          VERSION_CODE: '28'
+          VERSION_NAME: '0.28-interflash-logo'
         run: |
           bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease \
             --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
             -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
       - uses: actions/upload-artifact@v4
         with:
-          name: InterFlashTV-OwnTV-v0.27-unsigned-build
+          name: InterFlashTV-OwnTV-v0.28-unsigned-build
           path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
           if-no-files-found: error
           retention-days: 7
