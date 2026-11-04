@@ -1,0 +1,63 @@
+name: Build Inter Flash TV 0.29 fast start
+on:
+  push:
+    branches: [codex/v029-live-buffer]
+    paths:
+      - 'faststart.patch'
+      - 'live-controls.patch'
+      - 'stability027.patch'
+      - 'release/apply_brand028.py'
+      - 'release/apply_stability029.py'
+      - '.github/workflows/build-v029.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the v0.23 OwnTV source
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.23/InterFlashTV-OwnTV-source-v0.23.zip \
+            --output source-v0.23.zip
+          unzip -q source-v0.23.zip
+      - name: Apply the fullscreen startup change
+        run: |
+          patch -d InterFlashTV-OwnTV -p1 < faststart.patch
+          patch -d InterFlashTV-OwnTV -p1 < live-controls.patch
+          patch -d OwnTV_Core-main -p1 < stability027.patch
+          python3 release/apply_brand028.py
+          python3 release/apply_stability029.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android build tools
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Build the installable APK
+        env:
+          VERSION_CODE: '29'
+          VERSION_NAME: '0.29-stability'
+        run: |
+          bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease \
+            --no-daemon -Pkotlin.compiler.execution.strategy=in-process \
+            -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - name: Package exact source
+        run: zip -qr source-v029.zip InterFlashTV-OwnTV OwnTV_Core-main -x '*/build/*' '*/.gradle/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-OwnTV-v0.29-unsigned-build
+          path: |
+            InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+            source-v029.zip
+          if-no-files-found: error
+          retention-days: 7
