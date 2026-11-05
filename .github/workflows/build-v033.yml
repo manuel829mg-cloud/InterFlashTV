@@ -1,0 +1,39 @@
+name: Build Inter Flash TV 0.33 Dominican numbers
+on:
+  push:
+    branches: [codex/v033-dominican-numbers]
+    paths: ['dominican033.patch', '.github/workflows/build-v033.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch --batch -p1 < dominican033.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Compile APK
+        env:
+          VERSION_CODE: '33'
+          VERSION_NAME: '0.33-dominican-numbers'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v033-unsigned
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+          if-no-files-found: error
