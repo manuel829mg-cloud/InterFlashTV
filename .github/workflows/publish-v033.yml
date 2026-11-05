@@ -1,0 +1,51 @@
+name: Publish verified Inter Flash TV 0.33
+on:
+  push:
+    branches: [codex/v033-dominican-numbers]
+    paths: ['.github/workflows/publish-v033.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Download pinned build
+        run: gh run download 42114980089 --repo "$GITHUB_REPOSITORY" --name InterFlashTV-v033-unsigned --dir build-artifact
+      - name: Reconstruct exact verified signed APK
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,base64,zlib,hashlib
+          m=json.loads(Path('release/v033-apk-signature.json').read_text())
+          a=next(Path('build-artifact').rglob('*.apk')).read_bytes()
+          assert len(a)==m['original_size'] and hashlib.sha256(a).hexdigest()==m['original_sha256']
+          recipe=json.loads(zlib.decompress(base64.b64decode(m['public_apk_recipe_zlib_base64'])))
+          b=b''.join(a[o['copy'][0]:sum(o['copy'])] if 'copy' in o else base64.b64decode(o['bytes']) for o in recipe)
+          assert len(b)==m['signed_size'] and hashlib.sha256(b).hexdigest()==m['signed_sha256']
+          Path('distribution').mkdir()
+          Path('distribution/InterFlashTV-OwnTV-v0.33-dominican-numbers.apk').write_bytes(b)
+          PY
+      - name: Verify signature package and version
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs distribution/*.apk > cert.txt
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging distribution/*.apk > package.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          assert 'b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1' in Path('cert.txt').read_text()
+          t=Path('package.txt').read_text()
+          assert "name='com.interflash.tv.player'" in t and "versionCode='33'" in t
+          PY
+      - name: Publish update for in-app button
+        run: |
+          gh release create v0.33-dominican-numbers --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --title 'Inter Flash TV 0.33 — Canales Dominicanos' --notes 'Carpeta dominicana priorizada y cambio por números limitado al grupo activo. Conserva el diseño. Firma y paquete compatibles con la versión 0.31. Pendiente prueba en televisor.' distribution/*.apk
+          gh release edit v0.33-dominican-numbers --repo "$GITHUB_REPOSITORY" --draft=false --latest
