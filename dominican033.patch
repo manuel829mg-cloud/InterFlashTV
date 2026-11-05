@@ -1,0 +1,78 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -601,7 +601,8 @@
+                 )
+                 val multiSourceNames = c.sourceNames.takeIf { it.size > 1 }.orEmpty()
+                 val categoriesById = cats.associateBy { it.id }
+-                railWithCatchup(catchupCount > 0) + folders.map { e ->
++                val orderedFolders = folders.sortedBy { if (isDominicanFolder(it.displayName)) 0 else 1 }
++                railWithCatchup(catchupCount > 0) + orderedFolders.map { e ->
+                     LiveRailItem(
+                         key = e.categoryId?.let { LiveKey.Folder(it) } ?: LiveKey.Custom(e.customId!!),
+                         title = e.displayName,
+@@ -1361,6 +1362,12 @@
+             // list for anchor selection and the "already present, skip rebuild" check. Using the
+             // stale snapshot there would lose the fallback anchor or incorrectly skip rebuilding.
+             val snapshotZapList = zapList.channels.value
++            val snapshotZapKey = zapList.key.value
++            val snapshotZapTitle = zapList.title.value
++            val restrictedCategoryId = if (isDominicanFolder(snapshotZapTitle)) {
++                (snapshotZapKey as? LiveKey.Folder)?.id
++                    ?: snapshotZapList.mapNotNull { it.categoryId }.distinct().singleOrNull()
++            } else null
+ 
+             // DB queries on IO; playback on Main (ExoPlayer/mpv require main thread).
+             val resolved = withContext(Dispatchers.IO) {
+@@ -1378,7 +1385,8 @@
+                 // Stage 1: query the currently playing source.
+                 val currentSourceCandidates = channelDao.findByNumber(
+                     listOf(currentChannel.sourceId), number,
+-                ).filter { isChannelVisible(it, currentCustom, activeHiddenCats) }
++                ).filter { isChannelVisible(it, currentCustom, activeHiddenCats) &&
++                    (restrictedCategoryId == null || it.categoryId == restrictedCategoryId) }
+ 
+                 if (currentSourceCandidates.isNotEmpty()) {
+                     val resolvedId = tv.own.owntv.player.resolveDirectTuneCandidate(
+@@ -1391,6 +1399,10 @@
+                     return@withContext ChannelNumberLookupResult.Found(customName?.let { r.copy(name = it) } ?: r)
+                 }
+ 
++                // The Dominican folder owns numeric tuning while selected. Never fall through
++                // to a matching number in another folder or source.
++                if (restrictedCategoryId != null) return@withContext ChannelNumberLookupResult.NotFound
++
+                 // Stage 2: fallback to other active Live sources.
+                 val fallbackSourceIds = snapshotSourceIds.filter { it != currentChannel.sourceId }
+                 if (fallbackSourceIds.isEmpty()) return@withContext ChannelNumberLookupResult.NotFound
+@@ -1420,7 +1432,8 @@
+             // Verify context hasn't changed during lookup. If the playing channel or active source
+             // set moved, the resolved channel is stale — return Cancelled and do nothing.
+             if (_previewChannel.value?.id != currentChannel.id ||
+-                ctx.value.sourceIds != snapshotSourceIds
++                ctx.value.sourceIds != snapshotSourceIds ||
++                zapList.key.value != snapshotZapKey || zapList.title.value != snapshotZapTitle
+             ) return tv.own.owntv.player.DirectTuneResult.Cancelled
+ 
+             // If the tuned channel is already playing, skip playback + rebuild to avoid a stream
+@@ -2191,3 +2204,10 @@
+ 
+     }
+ }
++
++/** Recognize provider labels with accents, flags or country prefixes. */
++private fun isDominicanFolder(name: String?): Boolean {
++    val normalized = java.text.Normalizer.normalize(name.orEmpty(), java.text.Normalizer.Form.NFD)
++        .replace(Regex("\\p{M}+"), "").lowercase(java.util.Locale.ROOT)
++    return normalized.contains("dominican")
++}
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveZapList.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveZapList.kt
+@@ -105,7 +105,7 @@
+         loadJob = scope.launch {
+             val loaded = loadForCategory(categoryId)
+             if (loaded.isEmpty()) return@launch
+-            publish(loaded, categoryId = categoryId, title = categoryName(categoryId), key = null)
++            publish(loaded, categoryId = categoryId, title = categoryName(categoryId), key = LiveKey.Folder(categoryId))
+             onLoaded()
+         }
+     }
