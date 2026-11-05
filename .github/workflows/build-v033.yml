@@ -31,7 +31,7 @@ jobs:
         working-directory: InterFlashTV-OwnTV
         run: |
           python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '' --category regex
-          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\\p{M}+' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\p{M}+' --category regex
           python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text 'dominican' --category regex
       - name: Compile APK
         env:
