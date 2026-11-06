@@ -1,0 +1,380 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
+@@ -44,8 +44,9 @@
+     val guideScheduler: tv.own.owntv.core.sync.work.EpgSyncScheduler = koinInject()
+     val guideDao: tv.own.owntv.core.database.dao.EpgDao = koinInject()
+     val guideCandidates = remember(guideDao) { tv.own.owntv.core.epg.GuideCandidates(guideDao) }
++    val guideCategories: tv.own.owntv.core.database.dao.CategoryDao = koinInject()
+     val guideCustomize: tv.own.owntv.core.customize.CustomizationStore = koinInject()
+-    val guideSync = remember(context) { PanelGuideSync(context, sources, guideChannels, guideStore, guideRepository, guideScheduler, guideCandidates, guideCustomize, settings) }
++    val guideSync = remember(context) { PanelGuideSync(context, sources, guideChannels, guideStore, guideRepository, guideScheduler, guideCandidates, guideCustomize, settings, guideCategories) }
+     val engines: PlaybackEngines = koinInject()
+     val controller = remember(context) { PanelController(context, sources, profiles, profileDao, settings) }
+     var admitted by remember { mutableStateOf(false) }
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt
+@@ -0,0 +1,108 @@
++package tv.own.owntv.interflash
++
++import tv.own.owntv.core.epg.EpgMatcher
++
++/** Verified Dominican feed: applies only to missing guides in the Dominican/Latin lineup. */
++internal object PanelGuideFallback {
++    const val URL = "https://epgshare01.online/epgshare01/epg_ripper_DO1.xml.gz"
++    const val USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
++
++    private val aliases = listOf(
++        "Teleantillas" to "canal.2.de.república.dominicana.(teleantillas).do",
++        "Tele Antillas" to "canal.2.de.república.dominicana.(teleantillas).do",
++        "Teleantillas Canal 2" to "canal.2.de.república.dominicana.(teleantillas).do",
++        "Teleantillas 2" to "canal.2.de.república.dominicana.(teleantillas).do",
++        "Telemicro" to "canal.5.de.república.dominicana.(telemicro).do",
++        "Telemicro 5" to "canal.5.de.república.dominicana.(telemicro).do",
++        "Telemicro Canal 5" to "canal.5.de.república.dominicana.(telemicro).do",
++        "Antena Latina" to "canal.7.de.antena.latina.(república.dominicana).do",
++        "Antena 7" to "canal.7.de.antena.latina.(república.dominicana).do",
++        "Antena Latina 7" to "canal.7.de.antena.latina.(república.dominicana).do",
++        "Color Visión" to "canal.9.de.color.visión.(república.dominicana).do",
++        "Color Vision 9" to "canal.9.de.color.visión.(república.dominicana).do",
++        "Telesistema" to "canal.telesistema.11.(república.dominicana).do",
++        "Telesistema 11" to "canal.telesistema.11.(república.dominicana).do",
++        "Telesistema Canal 11" to "canal.telesistema.11.(república.dominicana).do",
++        "Telecentro" to "canal.telecentro.(13.de.república.dominicana).do",
++        "Telecentro 13" to "canal.telecentro.(13.de.república.dominicana).do",
++        "Digital 15" to "canal.15.(digital.quince.telemicro).(república.dominicana).do",
++        "Digital Quince" to "canal.15.(digital.quince.telemicro).(república.dominicana).do",
++        "Teleuniverso" to "canal.29.de.teleuniverso.(república.dominicana).do",
++        "Teleuniverso 29" to "canal.29.de.teleuniverso.(república.dominicana).do",
++        "CDN" to "canal.37.de.república.dominicana.(cdn).do",
++        "CDN 37" to "canal.37.de.república.dominicana.(cdn).do",
++        "A&E" to "canal.a&e.(república.dominicana).do",
++        "AMC" to "canal.amc.(república.dominicana).do",
++        "Animal Planet" to "canal.animal.planet.(república.dominicana).do",
++        "AXN" to "canal.axn.(república.dominicana).do",
++        "Cartoon Network" to "canal.cartoon.network.(república.dominicana).do",
++        "Cartoonito" to "canal.cartoonito.(república.dominicana).do",
++        "CDN Deportes" to "canal.cdn.deportes.do",
++        "Cinecanal" to "canal.cinecanal.(república.dominicana).do",
++        "Cinemax" to "canal.cinemax.(república.dominicana).do",
++        "Comedy Central" to "canal.comedy.central.(república.dominicana).do",
++        "Discovery Channel" to "canal.discovery.channel.(república.dominicana).do",
++        "Discovery Home & Health" to "canal.discovery.home.&.health.(república.dominicana).do",
++        "Discovery H&H" to "canal.discovery.home.&.health.(república.dominicana).do",
++        "Discovery Kids" to "canal.discovery.kids.(república.dominicana).do",
++        "Disney Channel" to "canal.disney.channel.(república.dominicana).do",
++        "E! Entertainment Television" to "canal.e!.entertainment.television.(república.dominicana).do",
++        "ESPN" to "canal.espn.(república.dominicana).do",
++        "ESPN 2" to "canal.espn.2.(república.dominicana).do",
++        "ESPN 3" to "canal.espn.3.(república.dominicana).do",
++        "ESPN 4" to "canal.espn.4.(república.dominicana).do",
++        "ESPN 5" to "canal.espn.5.(república.dominicana).do",
++        "ESPN 6" to "canal.espn.6.(república.dominicana).do",
++        "FX" to "canal.fx.(república.dominicana).do",
++        "Golden" to "canal.golden.(república.dominicana).do",
++        "HBO" to "canal.hbo.(república.dominicana).do",
++        "History" to "canal.history.(república.dominicana).do",
++        "History Channel" to "canal.history.(república.dominicana).do",
++        "History 2" to "canal.history.2.(república.dominicana).do",
++        "H2" to "canal.history.2.(república.dominicana).do",
++        "Lifetime" to "canal.lifetime.(república.dominicana).do",
++        "MTV" to "canal.mtv.(república.dominicana).do",
++        "National Geographic" to "canal.national.geographic.(república.dominicana).do",
++        "Nat Geo" to "canal.national.geographic.(república.dominicana).do",
++        "Nick Jr." to "canal.nick.jr..(república.dominicana).do",
++        "Nickelodeon" to "canal.nickelodeon.(república.dominicana).do",
++        "Paramount Channel" to "canal.paramount.channel.(república.dominicana).do",
++        "Sony" to "canal.sony.(república.dominicana).do",
++        "Sony Channel" to "canal.sony.(república.dominicana).do",
++        "Space" to "canal.space.(república.dominicana).do",
++        "Star Channel" to "canal.star.channel.(república.dominicana).do",
++        "TCM" to "canal.tcm.(república.dominicana).do",
++        "Telemundo" to "canal.telemundo.(república.dominicana).do",
++        "Teleunion" to "canal.teleunion.(república.dominicana).do",
++        "Televisión Dominicana" to "canal.televisión.dominicana.do",
++        "TLC" to "canal.tlc.(república.dominicana).do",
++        "TNT" to "canal.tnt.(república.dominicana).do",
++        "TNT Novelas" to "canal.tnt.novelas.(república.dominicana).do",
++        "TNT Series" to "canal.tnt.series.(república.dominicana).do",
++        "Universal TV" to "canal.universal.tv.(república.dominicana).do",
++        "Univisión" to "canal.univisión.(república.dominicana).do",
++        "USA Network" to "canal.usa.network.(república.dominicana).do",
++        "Warner TV" to "canal.warner.tv.(república.dominicana).do",
++        "Warner Channel" to "canal.warner.tv.(república.dominicana).do",
++    ).associate { normalized(it.first) to it.second }
++
++    fun normalized(raw: String): String = EpgMatcher.normalizeForEpg(
++        raw.replace(Regex("^\\s*(?:RD|DO|LAT)\\s*\\|\\s*", RegexOption.IGNORE_CASE), "")
++            .replace(Regex("\\s*\\(LA\\)\\s*$", RegexOption.IGNORE_CASE), ""),
++    )
++
++    fun eligibleFolder(raw: String): Boolean {
++        val name = normalized(raw)
++        if ("24 7" in name || "24/7" in raw) return false
++        return "dominican" in name || "cultural" in name || "CINE LATINO" in raw.uppercase() ||
++            ("infantil" in name && "24" !in name)
++    }
++
++    fun missing(resolvedId: String?, programmedIds: Set<String>): Boolean =
++        resolvedId?.trim()?.lowercase() !in programmedIds
++
++    fun idFor(name: String): String? {
++        if ("24/7" in name || name.trim().startsWith("24 7")) return null
++        return aliases[normalized(name)]
++    }
++}
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt
+@@ -24,6 +24,7 @@
+     private val candidates: tv.own.owntv.core.epg.GuideCandidates,
+     private val customize: tv.own.owntv.core.customize.CustomizationStore,
+     private val settings: tv.own.owntv.core.settings.SettingsRepository,
++    private val categories: tv.own.owntv.core.database.dao.CategoryDao,
+ ) {
+     private val prefs = context.getSharedPreferences("interflash_panel", Context.MODE_PRIVATE)
+ 
+@@ -44,6 +45,9 @@
+                     PanelGuideUrls.fromStream(channel.streamUrl)?.let { urls[it] = source.name to source.userAgent }
+                 }
+             }
++        }
++        if (sourceIds.isNotEmpty()) {
++            urls[PanelGuideFallback.URL] = "Inter Flash TV" to PanelGuideFallback.USER_AGENT
+         }
+         for ((url, info) in urls) {
+             try {
+@@ -73,25 +77,38 @@
+         if (stamp == matchedStamp || profile < 0) return@withContext
+         val available = candidates.all()
+         if (available.isEmpty()) return@withContext
+-        val byName = available.filter { !it.displayName.isNullOrBlank() }
+-            .groupBy { tv.own.owntv.core.epg.EpgMatcher.normalizeForEpg(it.displayName!!) }
++        val byName = available.filter { !it.displayName.isNullOrBlank() && !it.epgChannelId.endsWith(".do", true) }
++            .groupBy { PanelGuideFallback.normalized(it.displayName!!) }
++        val knownIds = available.mapTo(HashSet()) { it.epgChannelId.trim().lowercase() }
++        val eligibleCategories = categories.observe(sourceIds, tv.own.owntv.core.model.MediaType.LIVE).first()
++            .filter { PanelGuideFallback.eligibleFolder(it.name) }.mapTo(HashSet()) { it.id }
+         val withProgrammes = available.filter { it.hasProgrammes }
+             .mapTo(HashSet()) { it.epgChannelId.trim().lowercase() }
+         val type = tv.own.owntv.core.model.MediaType.LIVE
+         val cust = customize.observe(profile, type).first()
+         val additions = linkedMapOf<String, String>()
+         for (channel in channels.allForSources(sourceIds, Int.MAX_VALUE)) {
+-            if (cust.epgMatchResolver.epgIdFor(channel) != null) continue
+-            if (channel.epgChannelId?.trim()?.lowercase() in withProgrammes) continue
+-            val name = tv.own.owntv.core.epg.EpgMatcher.normalizeForEpg(channel.name)
++            val resolved = cust.epgMatchResolver.epgIdFor(channel) ?: channel.epgChannelId
++            if (!PanelGuideFallback.missing(resolved, withProgrammes)) continue
++            val name = PanelGuideFallback.normalized(channel.name)
+             if (name.isBlank()) continue
++            val fallback = if (channel.categoryId in eligibleCategories)
++                PanelGuideFallback.idFor(channel.name)?.takeIf { it in knownIds } else null
+             val matches = byName[name].orEmpty().map { it.epgChannelId.trim().lowercase() }.distinct()
+-            if (matches.size == 1) additions[tv.own.owntv.core.customize.CustomizeKeys.channel(channel)] = matches.single()
++            val match = fallback ?: matches.singleOrNull()
++            if (match != null) additions[tv.own.owntv.core.customize.CustomizeKeys.channel(channel)] = match
+         }
+         if (additions.isNotEmpty()) {
+-            // Preserve any user override made while discovery was running.
+-            customize.update(profile, type) { it.copy(epgMatches = additions + it.epgMatches) }
++            // A named guide entry alone is not enough: import its real programmes first.
+             epg.storeProgrammesForIdsFromCache(additions.values.toSet())
++            val programmed = candidates.all().filter { it.hasProgrammes }
++                .mapTo(HashSet()) { it.epgChannelId.trim().lowercase() }
++            val confirmed = additions.filterValues { it in programmed }
++            // Keep all working guides, and preserve edits made while discovery was running.
++            customize.update(profile, type) { current ->
++                val unchanged = confirmed.filterKeys { current.epgMatches[it] == cust.epgMatches[it] }
++                current.copy(epgMatches = current.epgMatches + unchanged)
++            }
+         }
+         matchedStamp = stamp
+     }
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/test/java/tv/own/owntv/interflash/PanelGuideFallbackTest.kt
+@@ -0,0 +1,28 @@
++package tv.own.owntv.interflash
++import org.junit.Assert.*
++import org.junit.Test
++class PanelGuideFallbackTest {
++    @Test fun workingGuideIsNeverReplaced() {
++        assertFalse(PanelGuideFallback.missing(" Existing.ID ", setOf("existing.id")))
++        assertTrue(PanelGuideFallback.missing(null, setOf("existing.id")))
++        assertTrue(PanelGuideFallback.missing("empty.id", setOf("existing.id")))
++    }
++    @Test fun explicitBroadcasterAliasesMatch() {
++        assertEquals("canal.2.de.república.dominicana.(teleantillas).do", PanelGuideFallback.idFor("RD | TELEANTILLAS CANAL 2 HD"))
++        assertEquals("canal.discovery.home.&.health.(república.dominicana).do", PanelGuideFallback.idFor("▸ Discovery H&H"))
++    }
++    @Test fun telemicroAndDigital15KeepTheirOwnSchedules() {
++        assertEquals("canal.5.de.república.dominicana.(telemicro).do", PanelGuideFallback.idFor("RD | TELEMICRO HD"))
++        assertEquals("canal.15.(digital.quince.telemicro).(república.dominicana).do", PanelGuideFallback.idFor("RD | DIGITAL 15"))
++        assertTrue(PanelGuideFallback.eligibleFolder("CINE LATINO HD"))
++    }
++    @Test fun distinctChannelsAndLoopChannelsAreNotInvented() {
++        assertNull(PanelGuideFallback.idFor("Telemicro Inter HD"))
++        assertNull(PanelGuideFallback.idFor("Cinemax East HD"))
++        assertNull(PanelGuideFallback.idFor("24/7 | Disney Channel"))
++        assertNull(PanelGuideFallback.idFor("Golden Edge HD"))
++        assertFalse(PanelGuideFallback.eligibleFolder("24/7 INFANTILES"))
++        assertFalse(PanelGuideFallback.eligibleFolder("ESTADOS UNIDOS"))
++        assertTrue(PanelGuideFallback.eligibleFolder("Canales Dominicanos"))
++    }
++}
+--- a/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt
++++ b/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt
+@@ -911,9 +911,155 @@
+ 2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	source_id
+ 1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	token
+ 2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	xtream
++2	empty	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	\0
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	24
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	24 7
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	24/7
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	A&E
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	AMC
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	AXN
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Animal Planet
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Antena 7
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Antena Latina
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Antena Latina 7
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	CDN
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	CDN 37
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	CDN Deportes
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	CINE LATINO
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cartoon Network
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cartoonito
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cinecanal
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cinemax
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Color Vision 9
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Color Visión
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Comedy Central
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Digital 15
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Digital Quince
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Discovery Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Discovery H&H
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Discovery Home & Health
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Discovery Kids
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Disney Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	E! Entertainment Television
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN 2
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN 3
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN 4
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN 5
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	ESPN 6
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	FX
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Golden
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	H2
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	HBO
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	History
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	History 2
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	History Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Lifetime
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	MTV
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Mozilla/5.0 (Linux; Android 14; Android TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Nat Geo
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	National Geographic
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Nick Jr.
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Nickelodeon
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Paramount Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Sony
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Sony Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Space
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Star Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	TCM
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	TLC
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	TNT
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	TNT Novelas
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	TNT Series
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Tele Antillas
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleantillas
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleantillas 2
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleantillas Canal 2
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telecentro
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telecentro 13
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telemicro
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telemicro 5
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telemicro Canal 5
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telemundo
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telesistema
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telesistema 11
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Telesistema Canal 11
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleunion
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleuniverso
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleuniverso 29
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Televisión Dominicana
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	USA Network
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Universal TV
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Univisión
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Warner Channel
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Warner TV
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	\\s*\\(LA\\)\\s*$
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	^\\s*(?:RD|DO|LAT)\\s*\\|\\s*
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.15.(digital.quince.telemicro).(república.dominicana).do
++4	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.2.de.república.dominicana.(teleantillas).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.29.de.teleuniverso.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.37.de.república.dominicana.(cdn).do
++3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.5.de.república.dominicana.(telemicro).do
++3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.7.de.antena.latina.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.9.de.color.visión.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.a&e.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.amc.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.animal.planet.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.axn.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.cartoon.network.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.cartoonito.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.cdn.deportes.do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.cinecanal.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.cinemax.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.comedy.central.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.discovery.channel.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.discovery.home.&.health.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.discovery.kids.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.disney.channel.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.e!.entertainment.television.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.2.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.3.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.4.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.5.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.espn.6.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.fx.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.golden.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.hbo.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.history.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.history.2.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.lifetime.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.mtv.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.national.geographic.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.nick.jr..(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.nickelodeon.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.paramount.channel.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.sony.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.space.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.star.channel.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tcm.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.telecentro.(13.de.república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.telemundo.(república.dominicana).do
++3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.telesistema.11.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.teleunion.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.televisión.dominicana.do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tlc.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.novelas.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.series.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.universal.tv.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.univisión.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.usa.network.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.warner.tv.(república.dominicana).do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	cultural
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	dominican
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	https://epgshare01.online/epgshare01/epg_ripper_DO1.xml.gz
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	infantil
+ 1	empty	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	\0
+ 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	${it.id}:${it.lastSyncAt}
+ 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	%02x
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	.do
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	Inter Flash TV
+ 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	SHA-256
+ 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	guide_attempt_
+ 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	interflash-guide
