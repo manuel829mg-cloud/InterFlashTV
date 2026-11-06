@@ -1,0 +1,37 @@
+name: Audit current Dominican guide coverage
+on:
+  push:
+    branches: [codex/v036-client-guide]
+    paths: ['.github/workflows/audit-guide036.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect public XMLTV schedule
+        run: |
+          python3 - <<'PY'
+          import urllib.request,gzip,xml.etree.ElementTree as E,datetime,collections
+          url='https://epgshare01.online/epgshare01/epg_ripper_DO1.xml.gz'
+          req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+          data=urllib.request.urlopen(req,timeout=60).read()
+          root=E.fromstring(gzip.decompress(data) if data[:2]==b'\x1f\x8b' else data)
+          now=datetime.datetime.now(datetime.timezone.utc)
+          counts=collections.Counter()
+          for p in root.findall('programme'):
+              try:
+                  stop=datetime.datetime.strptime(p.attrib['stop'],'%Y%m%d%H%M%S %z')
+                  if stop>now:counts[p.attrib['channel']]+=1
+              except (KeyError,ValueError):pass
+          lines=['Guide checked at '+now.isoformat()]
+          for c in root.findall('channel'):
+              key=c.attrib['id']
+              lines.append(str(counts[key])+' upcoming | '+key+' | '+' / '.join(n.text or '' for n in c.findall('display-name')))
+          open('guide-coverage.txt','w').write('\n'.join(lines))
+          print('\n'.join(lines))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guide-coverage
+          path: guide-coverage.txt
