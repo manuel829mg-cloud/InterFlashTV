@@ -1,0 +1,354 @@
+--- /dev/null
++++ b/OwnTV_Core-main/core/src/test/java/tv/own/owntv/core/settings/InterFlashRecommendedTest.kt
+@@ -0,0 +1,23 @@
++package tv.own.owntv.core.settings
++import androidx.datastore.preferences.core.mutablePreferencesOf
++import org.junit.Assert.*
++import org.junit.Test
++class InterFlashRecommendedTest {
++    @Test fun freshInstallUsesRecommendedWithoutPreload() {
++        val p = mutablePreferencesOf()
++        SettingsRepository.interFlashRecommendedDefaults(p)
++        assertEquals(LiveLatency.DEFAULT.name, p[SettingsRepository.Keys.LIVE_LATENCY_MODE])
++        assertEquals(0, p[SettingsRepository.Keys.LIVE_PREROLL_SECS])
++        assertNull(LiveBuffer.effectiveSeconds(LiveLatency.fromName(p[SettingsRepository.Keys.LIVE_LATENCY_MODE]), 30))
++    }
++    @Test fun upgradesOldCustomOnceAndPreservesLaterChanges() {
++        val p = mutablePreferencesOf(SettingsRepository.Keys.LIVE_LATENCY_MODE to LiveLatency.CUSTOM.name, SettingsRepository.Keys.LIVE_PREROLL_SECS to 5, SettingsRepository.Keys.INTERFLASH_STABILITY_029 to true)
++        SettingsRepository.interFlashRecommendedDefaults(p)
++        assertEquals(LiveLatency.DEFAULT.name, p[SettingsRepository.Keys.LIVE_LATENCY_MODE])
++        p[SettingsRepository.Keys.LIVE_LATENCY_MODE] = LiveLatency.STABLE.name
++        p[SettingsRepository.Keys.LIVE_PREROLL_SECS] = 2
++        SettingsRepository.interFlashRecommendedDefaults(p)
++        assertEquals(LiveLatency.STABLE.name, p[SettingsRepository.Keys.LIVE_LATENCY_MODE])
++        assertEquals(2, p[SettingsRepository.Keys.LIVE_PREROLL_SECS])
++    }
++}
+--- a/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt
++++ b/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt
+@@ -369,6 +369,7 @@
+         val LIVE_TUNE_TIMEOUT_SECS = intPreferencesKey("live_tune_timeout_secs")
+         // v4.1.6 one-shot: reset live latency to the safe Balanced preset. Subsequent user changes are
+         // preserved across every later update.
++        val INTERFLASH_RECOMMENDED_039 = booleanPreferencesKey("interflash_recommended_039")
+         val INTERFLASH_STABILITY_029 = booleanPreferencesKey("interflash_stability_029")
+         val INTERFLASH_STABILITY_027 = booleanPreferencesKey("interflash_stability_027")
+         val LIVE_LATENCY_RESET_416 = booleanPreferencesKey("live_latency_reset_416")
+@@ -2754,10 +2755,10 @@
+     val liveLatencyMode: Flow<String> = prefsFlow { prefs ->
+         // Also report Balanced before the startup migration coroutine completes, so an auto-resumed
+         // channel cannot briefly reuse an unsafe low/custom latency on the first 4.1.6 launch.
+-        if (prefs[Keys.INTERFLASH_STABILITY_029] == true) {
++        if (prefs[Keys.INTERFLASH_RECOMMENDED_039] == true) {
+             prefs[Keys.LIVE_LATENCY_MODE] ?: LiveLatency.DEFAULT.name
+         } else {
+-            LiveLatency.CUSTOM.name
++            LiveLatency.DEFAULT.name
+         }
+     }
+ 
+@@ -2837,15 +2838,7 @@
+ 
+     /** Apply the requested stability preset once on new installs and upgrades. */
+     suspend fun applyInterFlashStability027() {
+-        context.dataStore.edit { prefs ->
+-            if (prefs[Keys.INTERFLASH_STABILITY_029] == true) return@edit
+-            prefs[Keys.LIVE_LATENCY_MODE] = LiveLatency.CUSTOM.name
+-            prefs[Keys.LIVE_LATENCY_CUSTOM_SECS] = 30
+-            prefs[Keys.LIVE_PREROLL_SECS] = 5
+-            prefs[Keys.LIVE_LATENCY_RESET_416] = true
+-            prefs[Keys.INTERFLASH_STABILITY_027] = true
+-            prefs[Keys.INTERFLASH_STABILITY_029] = true
+-        }
++        context.dataStore.edit { prefs -> interFlashRecommendedDefaults(prefs) }
+     }
+ 
+     /** Custom live buffer seconds, used when the preset is [LiveLatency.CUSTOM]. */
+@@ -2863,9 +2856,9 @@
+      * start thresholds. A per-playlist override lives on `SourceEntity.livePrerollSecs`.
+      */
+     val livePrerollSecs: Flow<Int> = prefsFlow { prefs ->
+-        if (prefs[Keys.INTERFLASH_STABILITY_029] == true) {
+-            (prefs[Keys.LIVE_PREROLL_SECS] ?: 5).coerceIn(0, 30)
+-        } else 5
++        if (prefs[Keys.INTERFLASH_RECOMMENDED_039] == true) {
++            (prefs[Keys.LIVE_PREROLL_SECS] ?: 0).coerceIn(0, 30)
++        } else 0
+     }
+ 
+     suspend fun setLivePrerollSecs(secs: Int) {
+@@ -3316,6 +3309,17 @@
+     }
+ 
+     companion object {
++        /** Apply the owner-approved Recommended choices once, preserving later manual changes. */
++        internal fun interFlashRecommendedDefaults(prefs: MutablePreferences) {
++            if (prefs[Keys.INTERFLASH_RECOMMENDED_039] == true) return
++            prefs[Keys.LIVE_LATENCY_MODE] = LiveLatency.DEFAULT.name
++            prefs[Keys.LIVE_PREROLL_SECS] = 0
++            prefs[Keys.LIVE_LATENCY_RESET_416] = true
++            prefs[Keys.INTERFLASH_STABILITY_027] = true
++            prefs[Keys.INTERFLASH_STABILITY_029] = true
++            prefs[Keys.INTERFLASH_RECOMMENDED_039] = true
++        }
++
+         /** Glass opacity when glass is on: the Stage default and Reset. */
+         const val GLASS_ALPHA_DEFAULT_PCT = 50
+ 
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/test/java/tv/own/owntv/ui/format/DominicanTimeTest.kt
+@@ -0,0 +1,20 @@
++package tv.own.owntv.ui.format
++import org.junit.Assert.*
++import org.junit.Test
++import java.util.Date
++import java.util.TimeZone
++class DominicanTimeTest {
++    @Test fun ignoresDeviceZoneAndUsesTwelveHours() {
++        val old = TimeZone.getDefault()
++        try {
++            TimeZone.setDefault(TimeZone.getTimeZone("Asia/Tokyo"))
++            val format = DominicanTime.formatter()
++            assertEquals("America/Santo_Domingo", format.timeZone.id)
++            val instant = java.time.Instant.parse("2026-11-06T14:30:00Z").toEpochMilli()
++            assertTrue(format.format(Date(instant)).startsWith("10:30"))
++            val night = java.time.Instant.parse("2026-11-07T01:30:00Z").toEpochMilli()
++            assertTrue(format.format(Date(night)).startsWith("9:30"))
++            assertEquals("h:mm a", format.toPattern())
++        } finally { TimeZone.setDefault(old) }
++    }
++}
+--- a/InterFlashTV-OwnTV/app/src/main/res/values/interflash_guide.xml
++++ b/InterFlashTV-OwnTV/app/src/main/res/values/interflash_guide.xml
+@@ -1,4 +1,4 @@
+ <resources>
+-    <string name="interflash_guide_unavailable">Sin programación disponible</string>
++    <string name="interflash_guide_unavailable">Sin guía disponible</string>
+     <string name="interflash_guide_next">Después: %1$s</string>
+ </resources>
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt
+@@ -127,23 +127,23 @@
+                 Row(verticalAlignment = Alignment.CenterVertically) {
+                     meta.subtitle?.takeIf { it.isNotBlank() }?.let {
+                         Text(
+-                            it,
+-                            style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600),
+-                            color = hudInk.copy(alpha = 0.45f),
++                            it.removePrefix("#").trim(),
++                            style = tv.own.owntv.ui.theme.stageText(36, 800),
++                            color = Color.White,
+                             fontWeight = FontWeight.SemiBold,
+                             maxLines = 1,
+                             overflow = TextOverflow.Ellipsis,
+                         )
+                         Spacer(Modifier.width(10.dp))
+                     }
+-                    Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                    Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = if (isLive) Color.White else hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 }
+                 below?.invoke()
+             } else {
+                 vodSubtitle?.let {
+                     Text(it, style = tv.own.owntv.ui.theme.stageText(if (isLive) 16 else 22, 700), color = hudInk.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 }
+-                Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(if (isLive) 24 else 32, 600), color = if (isLive) Color.White else hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                 Spacer(Modifier.height(2.dp))
+                 chipRow()
+             }
+@@ -184,7 +184,7 @@
+     guide: (@Composable () -> Unit)? = null,
+ ) {
+     Row(
+-        modifier = modifier.widthIn(max = if (guide != null) 420.dp else 340.dp).clip(RoundedCornerShape(14.dp)).background(hudShade(0.55f)).padding(14.dp),
++        modifier = modifier.widthIn(max = if (guide != null) 600.dp else 420.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.88f)).padding(14.dp),
+         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+     ) {
+         Box(Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF004F46)), contentAlignment = Alignment.Center) {
+@@ -192,9 +192,9 @@
+             else Text((title ?: "?").take(3).uppercase(), style = tv.own.owntv.ui.theme.stageText(22, 700), color = Color(0xFF6FF8E4), fontWeight = FontWeight.Bold)
+         }
+         Column {
+-            Text(title ?: "", style = tv.own.owntv.ui.theme.stageText(25, 500), color = hudInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
++            Text(title ?: "", style = tv.own.owntv.ui.theme.stageText(25, 500), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+             subtitle?.takeIf { it.isNotBlank() }?.let {
+-                Text(it, style = tv.own.owntv.ui.theme.stageText(20, 500), color = hudInk.copy(alpha = 0.5f), maxLines = 1, overflow = TextOverflow.Ellipsis)
++                Text(it.removePrefix("#").trim(), style = tv.own.owntv.ui.theme.stageText(36, 800), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+             }
+             guide?.invoke()
+         }
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+@@ -629,6 +629,22 @@
+         // strip already names the channel, so only a direct tune — whose card names the channel the stream
+         // is still switching to — draws here.
+         val tuned = (tuneOsd as? TuneOsd.Tuned)?.info
++        val bannerGuide: @Composable () -> Unit = {
++            val programme = guideEntries.getOrNull(guideIndex)?.takeIf { it.stopMs > System.currentTimeMillis() }
++            if (programme == null) {
++                if (zapGuide != null) zapGuide() else Text(stringResource(R.string.interflash_guide_unavailable), color = Color.White)
++            } else {
++                val clock = tv.own.owntv.ui.format.rememberSystemTimeFormatter()
++                Column {
++                    Text(programme.title, style = tv.own.owntv.ui.theme.stageText(23, 700), color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2)
++                    Text(stringResource(R.string.content_live_time_range, clock(programme.startMs), clock(programme.stopMs)), style = tv.own.owntv.ui.theme.stageText(18, 500), color = Color.White.copy(alpha = 0.9f))
++                    guideEntries.getOrNull(guideIndex + 1)?.let { next ->
++                        Text(stringResource(R.string.interflash_guide_next, next.title), style = tv.own.owntv.ui.theme.stageText(20, 600), color = Color.White, maxLines = 2)
++                        Text(stringResource(R.string.content_live_time_range, clock(next.startMs), clock(next.stopMs)), style = tv.own.owntv.ui.theme.stageText(18, 500), color = Color.White.copy(alpha = 0.9f))
++                    }
++                }
++            }
++        }
+         Column(
+             modifier = Modifier.align(if (isLive) Alignment.BottomStart else Alignment.TopStart)
+                 .padding(start = 28.dp, top = if (isLive) 0.dp else if (controlsVisible) 92.dp else 28.dp, bottom = if (isLive) { if (controlsVisible) 320.dp else 28.dp } else 0.dp),
+@@ -638,20 +654,9 @@
+                 // A fresh tune drives the card from the lookup result, not player metadata: the Stalker and
+                 // mpv paths publish their metadata after an async resolve, which would show the old channel.
+                 if (tuned != null) {
+-                    ChannelOsdCard(title = tuned.name, subtitle = tuned.number?.let { stringResource(R.string.player_channel_number, it) }, logoUrl = tuned.logoUrl, guide = zapGuide)
++                    ChannelOsdCard(title = tuned.name, subtitle = tuned.number?.toString(), logoUrl = tuned.logoUrl, guide = bannerGuide)
+                 } else {
+-                    ChannelCard(player, guide = {
+-                        val programme = guideEntries.getOrNull(guideIndex)?.takeIf { it.stopMs > System.currentTimeMillis() }
+-                        if (programme == null) {
+-                            if (zapGuide != null) zapGuide() else Text(stringResource(R.string.interflash_guide_unavailable))
+-                        } else {
+-                            val clock = remember { java.text.SimpleDateFormat("EEE h:mm a", java.util.Locale("es", "DO")).apply { timeZone = java.util.TimeZone.getTimeZone("America/Santo_Domingo") } }
+-                            Column {
+-                                Text("${clock.format(java.util.Date(programme.startMs))} · ${programme.title}")
+-                                guideEntries.getOrNull(guideIndex + 1)?.let { next -> Text(stringResource(R.string.interflash_guide_next, next.title)) }
+-                            }
+-                        }
+-                    })
++                    ChannelCard(player, guide = bannerGuide)
+                 }
+             }
+             when (val osd = tuneOsd) {
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/epg/GuideStage.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/epg/GuideStage.kt
+@@ -637,7 +637,7 @@
+ private const val DAY_MS_APPROX = 24L * 60 * 60 * 1000
+ 
+ /** Local midnight of [ms], so days are counted as the viewer lives them (DST included). */
+-internal fun localMidnight(ms: Long): Long = java.util.Calendar.getInstance().apply {
++internal fun localMidnight(ms: Long): Long = java.util.Calendar.getInstance(tv.own.owntv.ui.format.DominicanTime.zone).apply {
+     timeInMillis = ms
+     set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+     set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/LiveEpgCard.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/LiveEpgCard.kt
+@@ -173,20 +173,23 @@
+  */
+ @Composable
+ fun ZapGuideLines(epg: EpgNowNext?, modifier: Modifier = Modifier) {
+-    if (epg == null || (epg.now == null && epg.next == null)) return
++    if (epg == null || (epg.now == null && epg.next == null)) {
++        Text(stringResource(R.string.interflash_guide_unavailable), color = Color.White)
++        return
++    }
+     val formatTime = rememberSystemTimeFormatter()
+     // The banner is up for a few seconds, so the moment it opened is precise enough.
+     val nowMs = remember(epg) { System.currentTimeMillis() }
+     Column(modifier.padding(top = 8.dp)) {
+         epg.now?.let { entry ->
+             SlotLabel(stringResource(R.string.content_live_now), tv.own.owntv.ui.theme.stageAccent.accent)
+-            Text(entry.title, style = tv.own.owntv.ui.theme.stageText(25, 400), color = hudInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
++            Text(entry.title, style = tv.own.owntv.ui.theme.stageText(25, 400), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+             val remaining = ((entry.stopMs - nowMs) / 60_000L).toInt()
+             Text(
+                 if (remaining in 1..600) stringResource(R.string.content_live_time_remaining, formatTime(entry.stopMs), remaining)
+                 else stringResource(R.string.content_live_time_range, formatTime(entry.startMs), formatTime(entry.stopMs)),
+                 style = tv.own.owntv.ui.theme.stageText(20, 500),
+-                color = hudInk.copy(alpha = 0.5f),
++                color = Color.White.copy(alpha = 0.9f),
+                 maxLines = 1,
+                 overflow = TextOverflow.Ellipsis,
+             )
+@@ -201,12 +204,12 @@
+         }
+         epg.next?.let { entry ->
+             Spacer(Modifier.height(8.dp))
+-            SlotLabel(stringResource(R.string.content_live_next), hudInk.copy(alpha = 0.45f))
+-            Text(entry.title, style = tv.own.owntv.ui.theme.stageText(22, 700), color = hudInk.copy(alpha = 0.72f), maxLines = 1, overflow = TextOverflow.Ellipsis)
++            SlotLabel(stringResource(R.string.content_live_next), Color.White.copy(alpha = 0.9f))
++            Text(entry.title, style = tv.own.owntv.ui.theme.stageText(22, 700), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+             Text(
+                 stringResource(R.string.content_live_time_range, formatTime(entry.startMs), formatTime(entry.stopMs)),
+                 style = tv.own.owntv.ui.theme.stageText(20, 500),
+-                color = hudInk.copy(alpha = 0.4f),
++                color = Color.White.copy(alpha = 0.9f),
+                 maxLines = 1,
+                 overflow = TextOverflow.Ellipsis,
+             )
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/ui/format/TimeFormat.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/ui/format/TimeFormat.kt
+@@ -22,7 +22,7 @@
+     val context = LocalContext.current
+     val configuration = LocalConfiguration.current
+     val formatter = remember(context, configuration) {
+-        DateFormat.getTimeFormat(context)
++        DominicanTime.formatter()
+     }
+     return remember(formatter) {
+         val date = Date(0L)
+@@ -35,7 +35,7 @@
+ }
+ 
+ fun formatSystemTime(context: Context, ms: Long): String {
+-    return DateFormat.getTimeFormat(context).format(Date(ms))
++    return DominicanTime.formatter().format(Date(ms))
+ }
+ 
+ @Composable
+@@ -44,7 +44,7 @@
+ ): (Long) -> String {
+     val configuration = LocalConfiguration.current
+     val locale = configuration.locales[0]
+-    val timeZone = TimeZone.getDefault()
++    val timeZone = DominicanTime.zone
+     val key = DateFormatterKey(locale, skeleton, timeZone.id)
+     val formatter = remember(key) {
+         bestDateFormatter(locale, skeleton, timeZone)
+@@ -76,7 +76,7 @@
+     ms: Long,
+ ): String {
+     val locale = context.resources.configuration.locales[0]
+-    return bestDateFormatter(locale, skeleton, TimeZone.getDefault()).format(Date(ms))
++    return bestDateFormatter(locale, skeleton, DominicanTime.zone).format(Date(ms))
+ }
+ 
+ fun formatBestDateTime(
+@@ -84,7 +84,7 @@
+     dateSkeleton: String,
+     ms: Long,
+ ): String {
+-    val skeleton = combinedDateTimeSkeleton(dateSkeleton, DateFormat.is24HourFormat(context))
++    val skeleton = combinedDateTimeSkeleton(dateSkeleton, false)
+     return formatBestDate(context, skeleton, ms)
+ }
+ 
+@@ -101,6 +101,6 @@
+     skeleton: String,
+     timeZone: TimeZone,
+ ): SimpleDateFormat {
+-    val pattern = DateFormat.getBestDateTimePattern(locale, skeleton)
++    val pattern = DateFormat.getBestDateTimePattern(locale, if (skeleton.any { it in TIME_FIELDS }) combinedDateTimeSkeleton(skeleton, false) else skeleton)
+     return SimpleDateFormat(pattern, locale).apply { this.timeZone = timeZone }
+ }
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt
+@@ -0,0 +1,12 @@
++package tv.own.owntv.ui.format
++
++import java.text.SimpleDateFormat
++import java.util.Locale
++import java.util.TimeZone
++
++/** Each caller owns its formatter: SimpleDateFormat is mutable, never shared across threads. */
++internal object DominicanTime {
++    val zone: TimeZone get() = TimeZone.getTimeZone("America/Santo_Domingo")
++    val locale: Locale get() = Locale.forLanguageTag("es-DO")
++    fun formatter(): SimpleDateFormat = SimpleDateFormat("h:mm a", locale).apply { timeZone = zone }
++}
