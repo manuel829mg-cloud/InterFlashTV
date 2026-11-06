@@ -1,7 +1,7 @@
 name: Compile local APK verification utility
 on:
   push:
-    branches: [codex/v029-live-buffer]
+    branches: [codex/v036-client-guide]
     paths: ['.github/workflows/compile-signing-tool.yml']
 permissions:
   contents: read
@@ -22,4 +22,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: local-signing-tool
-          path: release/SignApk.class
+          path: |
+            release/SignApk.class
+            apksig.jar
