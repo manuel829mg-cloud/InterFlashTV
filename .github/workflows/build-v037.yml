@@ -1,0 +1,57 @@
+name: Build Inter Flash TV 0.37 stage video and three-second mode hold
+on:
+  push:
+    branches: [codex/v037-stage-preview]
+    paths: ['layout037.patch', '.github/workflows/build-v037.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch --batch -p1 < dominican033.patch
+          patch --batch -p1 < guide034.patch
+          patch --batch -p1 < guide035.patch
+          patch --batch -p1 < client-guide036.patch
+          patch --batch -p1 < layout037.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Classify internal folder matching literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\p{M}+' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text 'dominican' --category regex
+      - name: Classify date formatting literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'EEE h:mm a' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'es' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'DO' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'America/Santo_Domingo' --category regex
+      - name: Compile APK
+        env:
+          VERSION_CODE: '37'
+          VERSION_NAME: '0.37-stage-preview'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.PanelGuide*' --tests 'tv.own.owntv.interflash.ModeHoldPressTest' :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v037-unsigned
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+          if-no-files-found: error
