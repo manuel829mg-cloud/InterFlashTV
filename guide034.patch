@@ -173,7 +173,7 @@
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	ensurePlaying history profile=$pid channelId=${channel.id}
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	ensurePlaying history record failed channelId=${channel.id} profile=$pid
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	stalker resolve failed channelId=${channel.id}
-@@ -909,6 +911,14 @@
+@@ -909,6 +911,27 @@
  2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	source_id
  1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	token
  2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	xtream
@@ -185,6 +185,19 @@
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	interflash_panel
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	manual_source_id
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	source_id
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	${uri.scheme}://${uri.rawAuthority}$path?username=${URLEncoder.encode(user, "UTF-8")}&password=${URLEncoder.encode(pass, "UTF-8")}
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	%2B
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	&
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	+
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	/get.php
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	/xmltv.php
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	=
++6	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	UTF-8
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	http
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	https
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	live
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	password
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideUrls.kt	username
  1	empty	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	\0
  1	uri	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	/api/tv-native/manual/
  1	assertion	app/src/main/java/tv/own/owntv/interflash/PanelSourceConfig.kt	Invalid manual channel source
