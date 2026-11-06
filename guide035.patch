@@ -13,7 +13,7 @@
      var admitted by remember { mutableStateOf(false) }
 --- /dev/null
 +++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt
-@@ -0,0 +1,108 @@
+@@ -0,0 +1,111 @@
 +package tv.own.owntv.interflash
 +
 +import tv.own.owntv.core.epg.EpgMatcher
@@ -100,6 +100,9 @@
 +        "USA Network" to "canal.usa.network.(república.dominicana).do",
 +        "Warner TV" to "canal.warner.tv.(república.dominicana).do",
 +        "Warner Channel" to "canal.warner.tv.(república.dominicana).do",
++        "Color Vision" to "canal.9.de.color.visión.(república.dominicana).do",
++        "Television Dominicana" to "canal.televisión.dominicana.do",
++        "Univision" to "canal.univisión.(república.dominicana).do",
 +    ).associate { normalized(it.first) to it.second }
 +
 +    fun normalized(raw: String): String = EpgMatcher.normalizeForEpg(
@@ -191,7 +194,7 @@
      }
 --- /dev/null
 +++ b/InterFlashTV-OwnTV/app/src/test/java/tv/own/owntv/interflash/PanelGuideFallbackTest.kt
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,31 @@
 +package tv.own.owntv.interflash
 +import org.junit.Assert.*
 +import org.junit.Test
@@ -204,6 +207,9 @@
 +    @Test fun explicitBroadcasterAliasesMatch() {
 +        assertEquals("canal.2.de.república.dominicana.(teleantillas).do", PanelGuideFallback.idFor("RD | TELEANTILLAS CANAL 2 HD"))
 +        assertEquals("canal.discovery.home.&.health.(república.dominicana).do", PanelGuideFallback.idFor("▸ Discovery H&H"))
++    }
++    @Test fun unaccentedPlaylistNamesMatchTheirBroadcaster() {
++        assertEquals("canal.9.de.color.visión.(república.dominicana).do", PanelGuideFallback.idFor("RD | COLOR VISION HD"))
 +    }
 +    @Test fun telemicroAndDigital15KeepTheirOwnSchedules() {
 +        assertEquals("canal.5.de.república.dominicana.(telemicro).do", PanelGuideFallback.idFor("RD | TELEMICRO HD"))
@@ -222,7 +228,7 @@
 +}
 --- a/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt
 +++ b/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt
-@@ -911,9 +911,155 @@
+@@ -911,9 +911,158 @@
  2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	source_id
  1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	token
  2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	xtream
@@ -245,6 +251,7 @@
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cartoonito
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cinecanal
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Cinemax
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Color Vision
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Color Vision 9
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Color Visión
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Comedy Central
@@ -302,9 +309,11 @@
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleunion
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleuniverso
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Teleuniverso 29
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Television Dominicana
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Televisión Dominicana
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	USA Network
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Universal TV
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Univision
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Univisión
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Warner Channel
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	Warner TV
@@ -316,7 +325,7 @@
 +2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.37.de.república.dominicana.(cdn).do
 +3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.5.de.república.dominicana.(telemicro).do
 +3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.7.de.antena.latina.(república.dominicana).do
-+2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.9.de.color.visión.(república.dominicana).do
++3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.9.de.color.visión.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.a&e.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.amc.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.animal.planet.(república.dominicana).do
@@ -357,13 +366,13 @@
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.telemundo.(república.dominicana).do
 +3	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.telesistema.11.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.teleunion.(república.dominicana).do
-+1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.televisión.dominicana.do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.televisión.dominicana.do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tlc.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.novelas.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.tnt.series.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.universal.tv.(república.dominicana).do
-+1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.univisión.(república.dominicana).do
++2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.univisión.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.usa.network.(república.dominicana).do
 +2	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	canal.warner.tv.(república.dominicana).do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	cultural
