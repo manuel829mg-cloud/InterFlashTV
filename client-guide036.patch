@@ -1,0 +1,156 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -315,6 +315,9 @@
+     val timelineProgrammes by remember(liveVm, wantTimeline) {
+         if (wantTimeline) liveVm.timelineProgrammes else flowOf(emptyList())
+     }.collectAsStateWithLifecycle(emptyList())
++    val browseGuide by remember(liveVm, playerMode) {
++        if (playerMode == PlayerMode.FULLSCREEN) liveVm.guideProgrammes else flowOf(emptyList())
++    }.collectAsStateWithLifecycle(emptyList())
+     // In-player channel-list overlay (Left while controls hidden, live only).
+     var showChannelList by remember { mutableStateOf(false) }
+     // In-player watch-history list (Right while controls hidden, live only).
+@@ -1178,8 +1181,8 @@
+                             avatarPath = avatarPath,
+                             onSwitchProfile = { if (!clientMode) onSwitchProfile() },
+                             onPickAvatar = {
+-                    InterFlashClientMode.administrator = true
+-                    onSelectSection(MainSection.SETTINGS)
++                    InterFlashClientMode.administrator = !InterFlashClientMode.administrator
++                    onSelectSection(if (InterFlashClientMode.administrator) MainSection.SETTINGS else MainSection.LIVE_TV)
+                 },
+                             onOpenSettings = { group, search ->
+                                 settingsStart = tv.own.owntv.features.shell.components.SettingsStart(group, search)
+@@ -1444,7 +1447,10 @@
+                 profileName = profileName.ifBlank { stringResource(R.string.common_own_tv_user) },
+                 profileLine = stringResource(R.string.shell_rail_profile_line, playlistLabel),
+                 onSwitchProfile = { if (!clientMode) onSwitchProfile() },
+-                onPickAvatar = { InterFlashClientMode.administrator = true; onSelectSection(MainSection.SETTINGS) },
++                onPickAvatar = {
++                    InterFlashClientMode.administrator = !InterFlashClientMode.administrator
++                    onSelectSection(if (InterFlashClientMode.administrator) MainSection.SETTINGS else MainSection.LIVE_TV)
++                },
+                 avatarId = avatarId,
+                 avatarPath = avatarPath,
+                 selectedItemFocusRequester = sidebarFocus,
+@@ -1706,6 +1712,7 @@
+                     onScrubLive = if (isTunedLive && canRewindLive) liveVm::scrubLive else null,
+                     // Only collected where there is a timeline to draw them on.
+                     liveProgrammes = if (isTunedLive && canRewindLive) timelineProgrammes else emptyList(),
++                    browseProgrammes = if (isTunedLive) browseGuide else emptyList(),
+                     liveGaps = liveVm::timeshiftGaps,
+                     // "Go back to…" is the provider archive's: a copy saved on this device rewinds with the
+                     // bar and the buttons, and must not show a catch-up control on a channel without catch-up.
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt
+@@ -459,6 +459,14 @@
+      * boundary ticks drawn on the bar and the name the scrub bubble reads out. Keyed on the channel
+      * alone — scrubbing must not re-query the guide, the whole two-hour window is already here.
+      */
++    val guideProgrammes: StateFlow<List<LiveProgramme>> =
++        combine(_previewChannel, epgRefresh) { ch, tick -> ch to tick }
++            .distinctUntilChanged { a, b -> a.first?.id == b.first?.id && a.second == b.second }
++            .mapLatest { (ch, _) ->
++                ch?.let { epgReader.guideProgrammes(it, custom.value, epgOffset.value).map { p -> LiveProgramme(p.startMs, p.stopMs, p.title) } }.orEmpty()
++            }
++            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
++
+     val timelineProgrammes: StateFlow<List<LiveProgramme>> =
+         combine(_previewChannel, epgRefresh) { ch, tick -> ch to tick }
+             .distinctUntilChanged { a, b -> a.first?.id == b.first?.id && a.second == b.second }
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/player/PlayerHud.kt
+@@ -140,6 +140,7 @@
+     onScrubLive: ((Int) -> Unit)? = null, // timeline scrub: +sec = back, −sec = toward live
+     // The playing channel's guide, for the timeline's programme ticks and the scrub bubble's name.
+     liveProgrammes: List<LiveProgramme> = emptyList(),
++    browseProgrammes: List<LiveProgramme> = emptyList(),
+     /** The saved copy's holes, for the rewind bar. */
+     liveGaps: () -> List<LongRange> = { emptyList() },
+     // "Go back to…": aim at a point in the archive instead of nudging toward it with rewind. Null =
+@@ -273,7 +274,12 @@
+     val canZap = onChannelUp != null && onChannelDown != null
+     var channelFlash by remember { mutableIntStateOf(0) }
+     var showFlash by remember { mutableStateOf(false) }
+-    LaunchedEffect(channelFlash) { if (channelFlash > 0) { showFlash = true; delay(3000); showFlash = false } }
++    var guideOffset by remember(directTuneContextKey) { mutableIntStateOf(0) }
++    val guideEntries = remember(browseProgrammes) { browseProgrammes.sortedBy { it.startMs } }
++    val guideStart = guideEntries.indexOfFirst { it.stopMs > System.currentTimeMillis() }.let { if (it < 0) guideEntries.size else it }
++    val guideIndex = (guideStart + guideOffset).coerceIn(0, guideEntries.lastIndex.coerceAtLeast(0))
++    LaunchedEffect(directTuneContextKey, isLive) { if (isLive) { guideOffset = 0; channelFlash++ } }
++    LaunchedEffect(channelFlash) { if (channelFlash > 0) { showFlash = true; delay(5000); showFlash = false; guideOffset = 0 } }
+ 
+     // Engine-switch confirmation toast: a brief "Switched to MPV/ExoPlayer" at the bottom-center when the
+     // user flips the engine via the HUD toggle. Mirrors the channel-flash pattern above.
+@@ -449,6 +455,15 @@
+     Box(
+         modifier = modifier.fillMaxSize()
+             .onPreviewKeyEvent { e ->
++            if (isLive && showFlash && !controlsVisible && !inert && error == null && dialog == HudDialog.NONE &&
++                (e.key == Key.DirectionLeft || e.key == Key.DirectionRight)) {
++                if (e.type == KeyEventType.KeyDown) {
++                    val maxOffset = (guideEntries.lastIndex - guideStart).coerceAtLeast(0)
++                    guideOffset = (guideOffset + if (e.key == Key.DirectionRight) 1 else -1).coerceIn(0, maxOffset)
++                    channelFlash++
++                }
++                return@onPreviewKeyEvent true
++            }
+             // ---- Direct-tune digit capture (before the existing KeyDown guard) ----
+             // Number keys are consumed globally here, HUD visible or not: on a TV remote a digit press
+             // during live playback can only mean "tune to this channel", and swallowing both KeyDown and
+@@ -625,7 +640,18 @@
+                 if (tuned != null) {
+                     ChannelOsdCard(title = tuned.name, subtitle = tuned.number?.let { stringResource(R.string.player_channel_number, it) }, logoUrl = tuned.logoUrl, guide = zapGuide)
+                 } else {
+-                    ChannelCard(player, guide = zapGuide)
++                    ChannelCard(player, guide = {
++                        val programme = guideEntries.getOrNull(guideIndex)?.takeIf { it.stopMs > System.currentTimeMillis() }
++                        if (programme == null) {
++                            if (zapGuide != null) zapGuide() else Text(stringResource(R.string.interflash_guide_unavailable))
++                        } else {
++                            val clock = remember { java.text.SimpleDateFormat("EEE h:mm a", java.util.Locale("es", "DO")).apply { timeZone = java.util.TimeZone.getTimeZone("America/Santo_Domingo") } }
++                            Column {
++                                Text("${clock.format(java.util.Date(programme.startMs))} · ${programme.title}")
++                                guideEntries.getOrNull(guideIndex + 1)?.let { next -> Text(stringResource(R.string.interflash_guide_next, next.title)) }
++                            }
++                        }
++                    })
+                 }
+             }
+             when (val osd = tuneOsd) {
+--- a/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/live/LiveEpgReader.kt
++++ b/OwnTV_Core-main/core/src/main/java/tv/own/owntv/core/live/LiveEpgReader.kt
+@@ -364,6 +364,26 @@
+ 
+     /** Recent (already-aired) programmes for a catch-up channel, newest first — drives the Live TV
+      *  catch-up picker. Bounded to the EPG we retain (7 days) and the channel's archive window. */
++    /** Available schedule for browsing; independent of archive playback. */
++    suspend fun guideProgrammes(
++        ch: ChannelEntity,
++        cust: SectionCustomizations,
++        globalShiftMinutes: Int,
++    ): List<EpgProgrammeEntity> = withContext(Dispatchers.IO) {
++        val epgKey = (cust.epgMatchResolver.epgIdFor(ch) ?: ch.epgChannelId)
++            ?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return@withContext emptyList()
++        val now = System.currentTimeMillis()
++        // Shifted guide → shifted window, and the rows come back on the corrected clock, so the
++        // archive URL built from the picked programme asks for the time it really aired.
++        val shift = EpgShift.minutesFor(cust, ch, globalShiftMinutes)
++        val at = EpgShift.toStored(now, shift)
++        epgSourceStore.priority().resolve(epgDao.programmesForChannel(epgKey, at - 60 * 60 * 1000, at + 24 * 60 * 60 * 1000))
++            .sortedBy { it.startMs }      // most recent first
++            .take(80)
++            .map { EpgShift.apply(it, shift) }
++    }
++
++
+     suspend fun catchupProgrammes(
+         ch: ChannelEntity,
+         cust: SectionCustomizations,
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/res/values/interflash_guide.xml
+@@ -0,0 +1,4 @@
++<resources>
++    <string name="interflash_guide_unavailable">Sin programación disponible</string>
++    <string name="interflash_guide_next">Después: %1$s</string>
++</resources>
