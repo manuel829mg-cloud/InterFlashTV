@@ -145,7 +145,13 @@
          }
          for ((url, info) in urls) {
              try {
-@@ -73,25 +77,38 @@
+@@ -68,30 +72,43 @@
+         }
+         // Fill missing IDs by exact, unambiguous channel names. Never guess a similar channel.
+         val profile = settings.activeProfileId.first()
+-        val stamp = guides.getAll().joinToString { "${it.id}:${it.lastSyncAt}" } +
++        val stamp = guides.getAll().joinToString { "${it.id}:${it.lastSyncAt}:${it.lastError}" } +
+             sourceIds.map { sources.getById(it)?.lastSyncAt }.toString() + profile
          if (stamp == matchedStamp || profile < 0) return@withContext
          val available = candidates.all()
          if (available.isEmpty()) return@withContext
@@ -380,7 +386,8 @@
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	https://epgshare01.online/epgshare01/epg_ripper_DO1.xml.gz
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideFallback.kt	infantil
  1	empty	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	\0
- 1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	${it.id}:${it.lastSyncAt}
+-1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	${it.id}:${it.lastSyncAt}
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	${it.id}:${it.lastSyncAt}:${it.lastError}
  1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	%02x
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	.do
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	Inter Flash TV
