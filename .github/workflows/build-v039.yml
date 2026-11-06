@@ -43,13 +43,6 @@ jobs:
           python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '' --category regex
           python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\p{M}+' --category regex
           python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text 'dominican' --category regex
-      - name: Classify date formatting literals
-        working-directory: InterFlashTV-OwnTV
-        run: |
-          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'EEE h:mm a' --category regex
-          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'es' --category regex
-          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'DO' --category regex
-          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHud.kt --text 'America/Santo_Domingo' --category regex
       - name: Classify Dominican clock formats
         working-directory: InterFlashTV-OwnTV
         run: |
