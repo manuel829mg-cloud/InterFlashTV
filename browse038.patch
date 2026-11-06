@@ -1,0 +1,309 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -1349,10 +1349,18 @@
+                         )
+ 
+                         selectedSection == MainSection.LIVE_TV -> LiveScreen(
+-                            onFullscreen = { openFullscreen() },
++                            onFullscreen = { openFullscreen(); playerMode = PlayerMode.FULLSCREEN },
+                             onOpenGuide = { liveVm.setLiveView(tv.own.owntv.core.settings.SettingsRepository.LiveView.GUIDE) },
+                             onChildFocused = { focusedLayer = ShellLayer.CONTENT },
+                             previewEnabled = playerMode == PlayerMode.NONE,
++                            browseTuneEnabled = playerMode == PlayerMode.NONE || playerMode == PlayerMode.MINI,
++                            onBrowseTune = {
++                                zapSource = MainSection.LIVE_TV
++                                homeVm.stopPreview()
++                                subtitleController.clear()
++                                resumeVideo()
++                                playerMode = PlayerMode.MINI
++                            },
+                             onPreviewVideoBoundsChanged = { liveStageBounds = it },
+                             restoreFocus = restoreFocus,
+                             onRestored = { restoreFocus = false },
+@@ -1418,23 +1426,7 @@
+             }
+           }
+             tv.own.owntv.features.shell.components.StageStatusCluster(
+-                continuePill = continueTarget?.let { target ->
+-                    val live = target.kind == tv.own.owntv.features.home.ContinueKind.LIVE
+-                    tv.own.owntv.features.shell.components.ContinuePill(
+-                        icon = if (live) OwnTVIcon.LIVE_TV else OwnTVIcon.PLAY,
+-                        iconFilled = !live,
+-                        action = stringResource(
+-                            when (target.action) {
+-                                tv.own.owntv.features.home.ContinueAction.RESUME -> R.string.content_action_resume
+-                                tv.own.owntv.features.home.ContinueAction.PLAY -> R.string.content_action_play
+-                                tv.own.owntv.features.home.ContinueAction.NEXT_UP -> R.string.content_action_next_episode
+-                                tv.own.owntv.features.home.ContinueAction.LAST_CHANNEL -> R.string.content_action_last_channel
+-                            },
+-                        ),
+-                        title = target.name,
+-                        onClick = continueLastWatched,
+-                    )
+-                },
++                continuePill = null,
+                 audioBar = audioBarContent,
+                 playlistLabel = playlistLabel,
+                 playlistInteractive = !clientMode && playlists.size > 1,
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/live/LiveScreen.kt
+@@ -96,6 +96,8 @@
+     onFullscreen: () -> Unit,
+     onChildFocused: () -> Unit,
+     previewEnabled: Boolean = true,
++    browseTuneEnabled: Boolean = false,
++    onBrowseTune: (() -> Unit)? = null,
+     restoreFocus: Boolean = false,
+     onRestored: () -> Unit = {},
+     modifier: Modifier = Modifier,
+@@ -173,15 +175,19 @@
+     // this screen, and stopping here would abort the stream that was just started. Playback is
+     // stopped on fullscreen exit (shell BackHandler) instead.
+ 
+-    // In-pane preview: play the focused channel after the focus settles (700ms). Disabled while the
+-    // fullscreen/mini player owns the surface (previewEnabled=false) to avoid two surfaces fighting.
+-    LaunchedEffect(previewChannel?.id, effectivePreview, previewArmed) {
+-        // previewArmed gates the case where the last channel was restored on startup — we don't auto-preview
+-        // it until the user actually focuses a channel (then it plays normally).
+-        if (!effectivePreview || !previewArmed) return@LaunchedEffect
++    // One playback owner: browse tuning uses the shell's existing live player, including
++    // its fallback engine. Cancel pending tuning when focus moves or fullscreen opens.
++    LaunchedEffect(previewChannel?.id, effectivePreview, previewArmed, browseTuneEnabled) {
++        if (!previewArmed) return@LaunchedEffect
+         val ch = previewChannel ?: return@LaunchedEffect
+-        delay(700)
+-        vm.playPreview(ch)
++        if (browseTuneEnabled && !externalPlayerOn && onBrowseTune != null) {
++            delay(250)
++            vm.watchFullscreen(ch, channels.itemSnapshotList.items.filterNotNull())
++            onBrowseTune.invoke()
++        } else if (effectivePreview) {
++            delay(700)
++            vm.playPreview(ch)
++        }
+     }
+ 
+     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+@@ -579,12 +585,6 @@
+         val margin = fx(64)
+         val row = screenW - margin * 2
+         val previewShown = if (separate) panelShares?.preview != 0 else stageWidths?.preview != 0
+-        val liveHints = listOf(
+-            stringResource(R.string.common_ok) to stringResource(R.string.content_key_watch),
+-            "◀" to stringResource(R.string.content_category_browser_title),
+-            "▶" to stringResource(R.string.content_key_schedule),
+-            stringResource(R.string.content_key_hold_ok) to stringResource(R.string.content_key_options),
+-        )
+         val gapCat = fx(26)
+         val gapStage = if (separate) fx(30) else fx(34)
+         val colW: Dp
+@@ -853,23 +853,6 @@
+                     }
+                     }
+                 }
+-                // With the preview off the hints stay under the list, where there is nothing else to hold them.
+-                if (lockedKey == null && !previewShown) {
+-                    tv.own.owntv.ui.stage.StageKeyHints(
+-                        liveHints,
+-                        // A clear gap under the list, and 40 from the bottom rather than the design's 26:
+-                        // TV panels overscan the very edge away.
+-                        modifier = Modifier.padding(start = 16.mpx, top = 22.mpx, bottom = 40.mpx),
+-                    )
+-                }
+-            }
+-
+-            // Under the preview, bottom right, so the list runs down to the bottom edge.
+-            if (lockedKey == null && previewShown) {
+-                tv.own.owntv.ui.stage.StageKeyHints(
+-                    liveHints,
+-                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = margin, bottom = 40.mpx),
+-                )
+             }
+ 
+             if (previewShown) {
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
+@@ -256,13 +256,13 @@
+                     active = section == selected ||
+                         (section == MainSection.MORE && selected == MainSection.SETTINGS),
+                     onClick = { onSelect(section) },
+-                    modifier = if (section == focusSection) Modifier.focusRequester(selectedItemFocusRequester) else Modifier,
++                    modifier = (if (section == focusSection) Modifier.focusRequester(selectedItemFocusRequester) else Modifier)
++                        .then(if (section == MainSection.LIVE_TV) modeHoldModifier({ onSelect(section) }, onPickAvatar) else Modifier),
+                 )
+             }
+             // Full height: the profile sits at the bottom, after the last separator.
+             if (full) Spacer(Modifier.weight(1f))
+-            RailSeparator(open)
+-            RailProfile(open, profileName, profileLine.takeIf { counts }, avatarId, avatarPath, onSwitchProfile, onPickAvatar)
++
+         }
+     }
+ }
+@@ -362,7 +362,9 @@
+             else -> StageColors.NavText
+         }
+         if (!open) {
+-            OwnTVIcon(icon, iconTint, Modifier.size(27.mpx))
++            if (icon == OwnTVIcon.LIVE_TV) {
++                Image(painterResource(R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx))
++            } else OwnTVIcon(icon, iconTint, Modifier.size(27.mpx))
+             if (active && !focused) RailActiveDot(Modifier.align(Alignment.CenterEnd).offset(x = 9.mpx))
+             return@StageSurface
+         }
+@@ -371,7 +373,9 @@
+             horizontalArrangement = Arrangement.spacedBy(18.mpx),
+             verticalAlignment = Alignment.CenterVertically,
+         ) {
+-            OwnTVIcon(icon, iconTint, Modifier.size(26.mpx))
++            if (icon == OwnTVIcon.LIVE_TV) {
++                Image(painterResource(R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx))
++            } else OwnTVIcon(icon, iconTint, Modifier.size(26.mpx))
+             Column(Modifier.weight(1f)) {
+                 Text(
+                     label,
+@@ -419,13 +423,65 @@
+ private fun RailProfile(open: Boolean, name: String, line: String?, avatarId: Int, avatarPath: String, onSwitchProfile: () -> Unit, onPickAvatar: () -> Unit) {
+     val a = stageAccent
+     val initial = name.trim().take(1).uppercase().ifEmpty { "?" }
++    val holdModifier = modeHoldModifier(onSwitchProfile, onPickAvatar)
++    StageSurface(
++        onClick = onSwitchProfile,
++        onLongClick = null,
++        radius = if (open) 20.mpx else 23.mpx,
++        modifier = holdModifier.then(if (open) Modifier.fillMaxWidth() else Modifier.padding(top = 4.mpx).size(46.mpx)),
++        // Alone in the capsule the avatar covers a fill, so it takes the ring instead.
++        focusStyle = if (open) StageFocus.FILLED else StageFocus.POSTER,
++        contentAlignment = if (open) Alignment.CenterStart else Alignment.Center,
++    ) { focused ->
++        if (!open) {
++            Image(painterResource(tv.own.owntv.R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx).clip(CircleShape))
++            return@StageSurface
++        }
++        Row(
++            Modifier.padding(start = 12.mpx, end = 12.mpx, top = 10.mpx, bottom = 6.mpx),
++            horizontalArrangement = Arrangement.spacedBy(14.mpx),
++            verticalAlignment = Alignment.CenterVertically,
++        ) {
++            Image(painterResource(tv.own.owntv.R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx).clip(CircleShape))
++            Column {
++                Text(name, style = stageText(19, 700), color = if (focused) a.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                if (line != null) {
++                    Text("$line ›", style = stageText(15, 400), color = if (focused) a.onAccent else StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                }
++            }
++        }
++    }
++}
++
++/**
++ * `.frail .av`: the profile's avatar or own picture in a circle; with neither, its initial on the orange
++ * gradient, 20/800 in #2A0D12. More's profile row draws it 58 / 24.
++ */
++@Composable
++internal fun RailAvatar(initial: String, size: Int = 46, textSize: Int = 20, avatarId: Int = -1, imagePath: String = "") {
++    if (avatarId != -1 || imagePath.isNotBlank()) {
++        tv.own.owntv.ui.components.OwnTVAvatar(avatarId = avatarId, imagePath = imagePath, modifier = Modifier.size(size.mpx).clip(CircleShape))
++        return
++    }
++    Box(
++        Modifier
++            .size(size.mpx)
++            .background(Brush.linearGradient(listOf(Color(0xFFFFB35C), Color(0xFFFF5F7A))), CircleShape),
++        contentAlignment = Alignment.Center,
++    ) {
++        Text(initial, style = stageText(textSize, 800), color = Color(0xFF2A0D12), maxLines = 1, overflow = TextOverflow.Ellipsis)
++    }
++}
++
++@Composable
++private fun modeHoldModifier(onClick: () -> Unit, onHold: () -> Unit): Modifier {
+     val tracker = remember { tv.own.owntv.interflash.ModeHoldPress() }
+     val scope = rememberCoroutineScope()
+     var holdJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+-    val clickAction by rememberUpdatedState(onSwitchProfile)
+-    val holdAction by rememberUpdatedState(onPickAvatar)
++    val clickAction by rememberUpdatedState(onClick)
++    val holdAction by rememberUpdatedState(onHold)
+     DisposableEffect(Unit) { onDispose { holdJob?.cancel(); tracker.cancel() } }
+-    val holdModifier = Modifier
++    return Modifier
+         .onFocusChanged { if (!it.isFocused) { holdJob?.cancel(); tracker.cancel() } }
+         .onPreviewKeyEvent { event ->
+             if (event.key != Key.DirectionCenter && event.key != Key.Enter && event.key != Key.NumPadEnter) false
+@@ -447,51 +503,4 @@
+                 true
+             }
+         }
+-    StageSurface(
+-        onClick = onSwitchProfile,
+-        onLongClick = null,
+-        radius = if (open) 20.mpx else 23.mpx,
+-        modifier = holdModifier.then(if (open) Modifier.fillMaxWidth() else Modifier.padding(top = 4.mpx).size(46.mpx)),
+-        // Alone in the capsule the avatar covers a fill, so it takes the ring instead.
+-        focusStyle = if (open) StageFocus.FILLED else StageFocus.POSTER,
+-        contentAlignment = if (open) Alignment.CenterStart else Alignment.Center,
+-    ) { focused ->
+-        if (!open) {
+-            Image(painterResource(tv.own.owntv.R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx).clip(CircleShape))
+-            return@StageSurface
+-        }
+-        Row(
+-            Modifier.padding(start = 12.mpx, end = 12.mpx, top = 10.mpx, bottom = 6.mpx),
+-            horizontalArrangement = Arrangement.spacedBy(14.mpx),
+-            verticalAlignment = Alignment.CenterVertically,
+-        ) {
+-            Image(painterResource(tv.own.owntv.R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx).clip(CircleShape))
+-            Column {
+-                Text(name, style = stageText(19, 700), color = if (focused) a.onAccent else StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-                if (line != null) {
+-                    Text("$line ›", style = stageText(15, 400), color = if (focused) a.onAccent else StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-                }
+-            }
+-        }
+-    }
+-}
+-
+-/**
+- * `.frail .av`: the profile's avatar or own picture in a circle; with neither, its initial on the orange
+- * gradient, 20/800 in #2A0D12. More's profile row draws it 58 / 24.
+- */
+-@Composable
+-internal fun RailAvatar(initial: String, size: Int = 46, textSize: Int = 20, avatarId: Int = -1, imagePath: String = "") {
+-    if (avatarId != -1 || imagePath.isNotBlank()) {
+-        tv.own.owntv.ui.components.OwnTVAvatar(avatarId = avatarId, imagePath = imagePath, modifier = Modifier.size(size.mpx).clip(CircleShape))
+-        return
+-    }
+-    Box(
+-        Modifier
+-            .size(size.mpx)
+-            .background(Brush.linearGradient(listOf(Color(0xFFFFB35C), Color(0xFFFF5F7A))), CircleShape),
+-        contentAlignment = Alignment.Center,
+-    ) {
+-        Text(initial, style = stageText(textSize, 800), color = Color(0xFF2A0D12), maxLines = 1, overflow = TextOverflow.Ellipsis)
+-    }
+-}
++}
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt
+@@ -132,13 +132,15 @@
+     val timeColor = clockColor(colors.time, StageColors.Text)
+     val dateColor = clockColor(colors.date, StageColors.Muted)
+     val weatherColor = clockColor(colors.weather, StageColors.Muted)
+-    val context = LocalContext.current
+-    val locale = LocalConfiguration.current.locales[0]
++    val locale = remember { java.util.Locale.forLanguageTag("es-DO") }
++    val zone = remember { java.util.TimeZone.getTimeZone("America/Santo_Domingo") }
+     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+     LaunchedEffect(Unit) { while (true) { delay(15_000); now = System.currentTimeMillis() } }
+-    val time = remember(now) { DateFormat.getTimeFormat(context).format(Date(now)) }
+-    val date = remember(now, locale) {
+-        android.text.format.DateFormat.format(DateFormat.getBestDateTimePattern(locale, "EEEdMMM"), now).toString()
++    val time = remember(now) {
++        java.text.SimpleDateFormat("h:mm a", locale).apply { timeZone = zone }.format(Date(now))
++    }
++    val date = remember(now) {
++        java.text.SimpleDateFormat("EEE d MMM", locale).apply { timeZone = zone }.format(Date(now))
+     }
+     // The cluster's text is lifted off any backdrop with a soft black shadow. The TV cuts a text
+     // shadow's blur off at the line's bounds, so a wide one showed as a dark box behind each line over a
