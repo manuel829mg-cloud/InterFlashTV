@@ -1,6 +1,6 @@
 --- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
 +++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt
-@@ -38,6 +38,11 @@
+@@ -38,6 +38,14 @@
      val profiles: ProfileManager = koinInject()
      val profileDao: ProfileDao = koinInject()
      val settings: SettingsRepository = koinInject()
@@ -8,11 +8,14 @@
 +    val guideStore: tv.own.owntv.core.epg.EpgSourceStore = koinInject()
 +    val guideRepository: tv.own.owntv.core.repository.EpgRepository = koinInject()
 +    val guideScheduler: tv.own.owntv.core.sync.work.EpgSyncScheduler = koinInject()
-+    val guideSync = remember(context) { PanelGuideSync(context, sources, guideChannels, guideStore, guideRepository, guideScheduler) }
++    val guideDao: tv.own.owntv.core.database.dao.EpgDao = koinInject()
++    val guideCandidates = remember(guideDao) { tv.own.owntv.core.epg.GuideCandidates(guideDao) }
++    val guideCustomize: tv.own.owntv.core.customize.CustomizationStore = koinInject()
++    val guideSync = remember(context) { PanelGuideSync(context, sources, guideChannels, guideStore, guideRepository, guideScheduler, guideCandidates, guideCustomize, settings) }
      val engines: PlaybackEngines = koinInject()
      val controller = remember(context) { PanelController(context, sources, profiles, profileDao, settings) }
      var admitted by remember { mutableStateOf(false) }
-@@ -79,6 +84,16 @@
+@@ -79,6 +87,16 @@
              }
          }
      }
@@ -31,12 +34,13 @@
              parents = emptyList(), title = appName, count = stringResource(R.string.interflash_pair_title),
 --- /dev/null
 +++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,98 @@
 +package tv.own.owntv.interflash
 +
 +import android.content.Context
 +import androidx.work.ExistingWorkPolicy
 +import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.flow.first
 +import kotlinx.coroutines.Dispatchers
 +import kotlinx.coroutines.withContext
 +import tv.own.owntv.core.database.dao.ChannelDao
@@ -54,13 +58,20 @@
 +    private val guides: EpgSourceStore,
 +    private val epg: EpgRepository,
 +    private val scheduler: EpgSyncScheduler,
++    private val candidates: tv.own.owntv.core.epg.GuideCandidates,
++    private val customize: tv.own.owntv.core.customize.CustomizationStore,
++    private val settings: tv.own.owntv.core.settings.SettingsRepository,
 +) {
 +    private val prefs = context.getSharedPreferences("interflash_panel", Context.MODE_PRIVATE)
 +
++    private var matchedStamp: String? = null
++
 +    suspend fun check() = withContext(Dispatchers.IO) {
 +        val urls = linkedMapOf<String, Pair<String, String?>>()
++        val sourceIds = mutableListOf<Long>()
 +        for (key in listOf("source_id", "manual_source_id")) {
 +            val source = sources.getById(prefs.getLong(key, -1)) ?: continue
++            sourceIds.add(source.id)
 +            val advertised = epg.guideUrls(source)
 +            advertised.forEach { urls[it] = source.name to source.userAgent }
 +            if (advertised.isEmpty()) {
@@ -92,6 +103,34 @@
 +                // Guide failure must not close the player or discard its last successful data.
 +            }
 +        }
++        // Fill missing IDs by exact, unambiguous channel names. Never guess a similar channel.
++        val profile = settings.activeProfileId.first()
++        val stamp = guides.getAll().joinToString { "${it.id}:${it.lastSyncAt}" } +
++            sourceIds.map { sources.getById(it)?.lastSyncAt }.toString() + profile
++        if (stamp == matchedStamp || profile < 0) return@withContext
++        val available = candidates.all()
++        if (available.isEmpty()) return@withContext
++        val byName = available.filter { !it.displayName.isNullOrBlank() }
++            .groupBy { tv.own.owntv.core.epg.EpgMatcher.normalizeForEpg(it.displayName!!) }
++        val withProgrammes = available.filter { it.hasProgrammes }
++            .mapTo(HashSet()) { it.epgChannelId.trim().lowercase() }
++        val type = tv.own.owntv.core.model.MediaType.LIVE
++        val cust = customize.observe(profile, type).first()
++        val additions = linkedMapOf<String, String>()
++        for (channel in channels.allForSources(sourceIds, Int.MAX_VALUE)) {
++            if (cust.epgMatchResolver.epgIdFor(channel) != null) continue
++            if (channel.epgChannelId?.trim()?.lowercase() in withProgrammes) continue
++            val name = tv.own.owntv.core.epg.EpgMatcher.normalizeForEpg(channel.name)
++            if (name.isBlank()) continue
++            val matches = byName[name].orEmpty().map { it.epgChannelId.trim().lowercase() }.distinct()
++            if (matches.size == 1) additions[tv.own.owntv.core.customize.CustomizeKeys.channel(channel)] = matches.single()
++        }
++        if (additions.isNotEmpty()) {
++            // Preserve any user override made while discovery was running.
++            customize.update(profile, type) { it.copy(epgMatches = additions + it.epgMatches) }
++            epg.storeProgrammesForIdsFromCache(additions.values.toSet())
++        }
++        matchedStamp = stamp
 +    }
 +}
 --- /dev/null
@@ -173,11 +212,12 @@
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	ensurePlaying history profile=$pid channelId=${channel.id}
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	ensurePlaying history record failed channelId=${channel.id} profile=$pid
  1	log	app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt	stalker resolve failed channelId=${channel.id}
-@@ -909,6 +911,27 @@
+@@ -909,6 +911,28 @@
  2	preference-key	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	source_id
  1	json	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	token
  2	protocol	app/src/main/java/tv/own/owntv/interflash/InterFlashGate.kt	xtream
 +1	empty	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	\0
++1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	${it.id}:${it.lastSyncAt}
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	%02x
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	SHA-256
 +1	technical	app/src/main/java/tv/own/owntv/interflash/PanelGuideSync.kt	guide_attempt_
