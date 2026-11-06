@@ -107,22 +107,22 @@
 +internal object PanelGuideUrls {
 +    fun fromPlaylist(raw: String): String? = runCatching {
 +        val uri = URI(raw)
-+        if (uri.scheme !in listOf("http", "https") || uri.host == null || uri.userInfo != null) return null
-+        if (!uri.path.endsWith("/get.php")) return null
++        if (uri.scheme !in listOf("http", "https") || uri.host == null || uri.userInfo != null) return@runCatching null
++        if (!uri.path.endsWith("/get.php")) return@runCatching null
 +        val query = uri.rawQuery.orEmpty().split("&").mapNotNull {
 +            val parts = it.split("=", limit = 2)
 +            if (parts.size == 2) URLDecoder.decode(parts[0], "UTF-8") to URLDecoder.decode(parts[1], "UTF-8") else null
 +        }.toMap()
-+        endpoint(uri, query["username"] ?: return null, query["password"] ?: return null,
++        endpoint(uri, query["username"] ?: return@runCatching null, query["password"] ?: return@runCatching null,
 +            uri.rawPath.substringBeforeLast('/') + "/xmltv.php")
 +    }.getOrNull()
 +
 +    fun fromStream(raw: String): String? = runCatching {
 +        val uri = URI(raw.substringBefore('|'))
-+        if (uri.scheme !in listOf("http", "https") || uri.host == null || uri.userInfo != null) return null
++        if (uri.scheme !in listOf("http", "https") || uri.host == null || uri.userInfo != null) return@runCatching null
 +        val parts = uri.rawPath.split('/')
 +        // Xtream live URLs explicitly encode /live/username/password/stream.
-+        if (parts.size != 5 || parts[1] != "live" || parts.drop(2).any { it.isBlank() }) return null
++        if (parts.size != 5 || parts[1] != "live" || parts.drop(2).any { it.isBlank() }) return@runCatching null
 +        val user = URLDecoder.decode(parts[2].replace("+", "%2B"), "UTF-8")
 +        val pass = URLDecoder.decode(parts[3].replace("+", "%2B"), "UTF-8")
 +        endpoint(uri, user, pass, "/xmltv.php")
