@@ -1,0 +1,43 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -47,6 +47,7 @@
+ import androidx.compose.ui.input.key.onPreviewKeyEvent
+ import androidx.compose.ui.input.key.type
+ import tv.own.owntv.core.epg.displayLogoUrl
++import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+@@ -944,7 +945,12 @@
+ 
+     // With Glass on, the shell's own base paints must be transparent so the background (rendered in
+     // MainActivity behind this shell) shows through the gaps between and around panels. Solid otherwise.
+-    val shellBase = if (LocalGlass.current.enabled) Color.Transparent else tv.own.owntv.ui.theme.LocalStagePalette.current.page
++    // Static, cached colours for the client channel screen; no wallpaper or animation.
++    val interFlashLiveBackground = selectedSection == MainSection.LIVE_TV && !LocalGlass.current.enabled
++    val liveBackground = remember {
++        Brush.verticalGradient(listOf(Color(0xFF0B1C2C), Color(0xFF07111E), Color(0xFF03070D)))
++    }
++    val shellBase = if (interFlashLiveBackground) Color(0xFF07111E) else if (LocalGlass.current.enabled) Color.Transparent else tv.own.owntv.ui.theme.LocalStagePalette.current.page
+ 
+     // Long-press Back (the second way in). Deliberately timed from the FIRST KeyDown rather than counted from
+     // key repeats: several TVs re-fire KeyDown while a key is held, so a repeat-counting version fires
+@@ -1136,7 +1142,8 @@
+                     .background(shellBase)
+                     // The Stage page, across the whole width — under a docked rail's reserve too.
+                     // Over a picture it draws only the Accent light; the picture shows through.
+-                    .stageBackground(tv.own.owntv.ui.theme.stageAccent.accent),
++                    .then(if (interFlashLiveBackground) Modifier.background(liveBackground)
++                        else Modifier.stageBackground(tv.own.owntv.ui.theme.stageAccent.accent)),
+             ) {
+                 // Live TV's view (List / Guide), and how a guide — the TV Guide or Live TV's Guide view —
+                 // starts a channel or an archive programme: through LiveViewModel, the one live path.
+@@ -1479,7 +1486,7 @@
+         // remains visible, exactly like the approved concept. It never intercepts input; fullscreen
+         // video and glass mode skip it entirely. Global Animations Off also freezes the slow pulse.
+         SolidAmbientBackdrop(
+-            glowEnabled = ambientGlowEnabled,
++            glowEnabled = ambientGlowEnabled && !interFlashLiveBackground,
+             pulseEnabled = ambientGlowPulse && shellAnimationLevel != tv.own.owntv.core.theme.AnimationLevel.OFF,
+             modifier = Modifier.fillMaxSize(),
+         )
