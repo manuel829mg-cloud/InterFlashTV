@@ -49,6 +49,15 @@
                          else Modifier.stageBackground(tv.own.owntv.ui.theme.stageAccent.accent)),
              ) {
                  // Live TV's view (List / Guide), and how a guide — the TV Guide or Live TV's Guide view —
+@@ -1703,7 +1703,7 @@
+                 }
+                 PlayerHud(
+                     player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
+-                    onBack = { if (clientMode) { dockPlayer(); onSelectSection(MainSection.LIVE_TV) } else exitPlayer() },
++                    onBack = { if (clientMode) { dockPlayer(); onSelectSection(zapSource ?: MainSection.LIVE_TV) } else exitPlayer() },
+                     onPip = dockPlayer, // PiP/dock works for live on either engine now
+                     onAudioMode = toAudioMode,
+                     // The channel-list overlay draws ABOVE the HUD; while it's open the HUD goes inert so
 --- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
 +++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
 @@ -163,13 +163,14 @@
@@ -70,7 +79,7 @@
      // Slide in from the edge (320 ms, or a snap with animations off): the capsule when it leaves
 --- /dev/null
 +++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/ChannelWatermark.kt
-@@ -0,0 +1,43 @@
+@@ -0,0 +1,47 @@
 +package tv.own.owntv.features.shell
 +
 +import androidx.compose.runtime.Composable
@@ -106,9 +115,13 @@
 +    val painter = rememberAsyncImagePainter(request)
 +    return drawWithContent {
 +        val edge = minOf(size.width * 0.32f, size.height * 0.55f)
-+        if (settledLogo != null) {
-+            withTransform({ translate(size.width - edge - 24f, size.height - edge - 12f) }) {
-+                with(painter) { draw(Size(edge, edge), alpha = 0.06f) }
++        val intrinsic = painter.intrinsicSize
++        if (settledLogo != null && intrinsic.width.isFinite() && intrinsic.height.isFinite() &&
++            intrinsic.width > 0f && intrinsic.height > 0f) {
++            val scale = edge / maxOf(intrinsic.width, intrinsic.height)
++            val logoSize = Size(intrinsic.width * scale, intrinsic.height * scale)
++            withTransform({ translate(size.width - logoSize.width - 24f, size.height - logoSize.height - 12f) }) {
++                with(painter) { draw(logoSize, alpha = 0.06f) }
 +            }
 +        }
 +        drawContent()
