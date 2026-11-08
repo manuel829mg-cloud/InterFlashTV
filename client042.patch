@@ -70,7 +70,18 @@
              pulseEnabled = ambientGlowPulse && shellAnimationLevel != tv.own.owntv.core.theme.AnimationLevel.OFF,
              modifier = Modifier.fillMaxSize(),
          )
-@@ -1703,7 +1713,7 @@
+@@ -1575,7 +1585,9 @@
+           }
+       }
+ 
+-      if (multiview == null && (playerMode == PlayerMode.FULLSCREEN || playerMode == PlayerMode.MINI)) {
++      // A catalogue never mounts a docked video, including the frame before its stop effect runs.
++      val clientCatalogueVisible = clientMode && selectedSection in listOf(MainSection.MOVIES, MainSection.SERIES)
++      if (multiview == null && (playerMode == PlayerMode.FULLSCREEN || (playerMode == PlayerMode.MINI && !clientCatalogueVisible))) {
+         val isFull = playerMode == PlayerMode.FULLSCREEN
+         val stageBounds = liveStageBounds?.takeIf { it.width > 0f && it.height > 0f }
+         val liveInStage = !isFull && selectedSection == MainSection.LIVE_TV && zapSource == MainSection.LIVE_TV
+@@ -1703,7 +1715,7 @@
                  }
                  PlayerHud(
                      player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
@@ -192,16 +203,24 @@
      val railItems by vm.railItems.collectAsStateWithLifecycle()
      val selectedKey by vm.selectedKey.collectAsStateWithLifecycle()
      val count by vm.count.collectAsStateWithLifecycle()
-@@ -164,7 +165,7 @@
+@@ -164,11 +165,14 @@
      val sortMode by vm.sortMode.collectAsStateWithLifecycle()
      val storedViewMode by vm.viewMode.collectAsStateWithLifecycle()
      val selectedMovie by vm.selectedMovie.collectAsStateWithLifecycle()
 -    val selectedMovieMeta by vm.selectedMovieMeta.collectAsStateWithLifecycle()
-+    val selectedMovieMeta by (if (clientCatalogue) kotlinx.coroutines.flow.flowOf(null) else vm.selectedMovieMeta).collectAsStateWithLifecycle(initialValue = null)
++    var contextMovie by remember { mutableStateOf<MovieEntity?>(null) }
++    val selectedMetaFlow = remember(clientCatalogue, contextMovie, vm) {
++        if (clientCatalogue && contextMovie == null) kotlinx.coroutines.flow.flowOf(null) else vm.selectedMovieMeta
++    }
++    val selectedMovieMeta by selectedMetaFlow.collectAsStateWithLifecycle(initialValue = null)
      val metadataMode by vm.metadataMode.collectAsStateWithLifecycle()
      val moveState by vm.moveState.collectAsStateWithLifecycle()
      val categoryMoveState by vm.categoryMoveState.collectAsStateWithLifecycle()
-@@ -241,11 +242,11 @@
+-    var contextMovie by remember { mutableStateOf<MovieEntity?>(null) }
+     var contextCategory by remember { mutableStateOf<LiveRailItem?>(null) }
+     // The rail row a category menu was opened from, kept after the menu closes so the cursor can go
+     // back to that exact row. Held as a key, not an index: a Move changes the row's position.
+@@ -241,11 +245,11 @@
      val settingsVm: tv.own.owntv.features.settings.SettingsViewModel = koinViewModel()
      val vodLayout by settingsVm.vodLayout.collectAsStateWithLifecycle()
      // Cinematic is the browse section's; More → Favourites / History pin the plain Separate list.
@@ -215,7 +234,31 @@
      val chNavEnabled by settingsVm.chNavEnabled.collectAsStateWithLifecycle()
      val chNavUpSkip by settingsVm.chNavUpSkip.collectAsStateWithLifecycle()
      val chNavDownSkip by settingsVm.chNavDownSkip.collectAsStateWithLifecycle()
-@@ -276,7 +277,7 @@
+@@ -259,10 +263,20 @@
+     val perCategoryMovieIds = remember { mutableStateMapOf<LiveKey, Long>() }
+     // NOTE: plain constructors, not remember*State() — these are created lazily inside getOrPut, so a
+     // @Composable/rememberSaveable call here would register slots conditionally and corrupt the slot table.
+-    val effectiveGridState = if (rememberMovies) perCategoryGrid.getOrPut(selectedKey) { LazyGridState() } else gridState
++    // The client catalogue uses the saveable grid state retained by the shell across sections.
++    var clientGridCategory by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(selectedKey.toString()) }
++    val effectiveGridState = if (clientCatalogue) gridState else if (rememberMovies) perCategoryGrid.getOrPut(selectedKey) { LazyGridState() } else gridState
+     val effectiveListState = if (rememberMovies) perCategoryList.getOrPut(selectedKey) { LazyListState() } else listState
+-    LaunchedEffect(selectedKey, rememberMovies) {
+-        if (!rememberMovies) { runCatching { gridState.scrollToItem(0) }; runCatching { listState.scrollToItem(0) } }
++    LaunchedEffect(selectedKey, rememberMovies, clientCatalogue) {
++        if (clientCatalogue) {
++            val category = selectedKey.toString()
++            if (clientGridCategory != category) {
++                gridState.scrollToItem(0)
++                clientGridCategory = category
++            }
++        } else if (!rememberMovies) {
++            runCatching { gridState.scrollToItem(0) }; runCatching { listState.scrollToItem(0) }
++        }
+     }
+     // The List view scrolls a LazyListState, the grids (Cinematic and Separate) a LazyGridState.
+     val usesList = viewMode == SettingsRepository.VodViewMode.LIST
+@@ -276,7 +290,7 @@
      var sheetHadFocus by remember { mutableStateOf(false) }
      var sortOpen by remember { mutableStateOf(false) }
      val sortFocus = remember { FocusRequester() }
@@ -224,7 +267,7 @@
      val railCounts by (if (categoriesVisible) vm.railCounts else remember { kotlinx.coroutines.flow.MutableStateFlow(emptyMap<LiveKey, Int>()) })
          .collectAsStateWithLifecycle()
      val catListState = rememberLazyListState()
-@@ -419,7 +420,7 @@
+@@ -419,7 +433,7 @@
      DisposableEffect(onEntryHook, cinematic) {
          onEntryHook?.invoke {
              // The column's own row path (scrolls to it if needed), not the list's first child: the search field.
@@ -233,7 +276,7 @@
          }
          onDispose { onEntryHook?.invoke(null) }
      }
-@@ -533,7 +534,7 @@
+@@ -533,7 +547,7 @@
                  when (requestedFocusDirection) {
                      // Cinematic's first column opens the sheet itself; in Separate, ◀ out of the first
                      // column reaches the category column. Nothing lies to the right.
@@ -242,7 +285,7 @@
                      androidx.compose.ui.focus.FocusDirection.Right -> cancelFocusChange()
                      // Pinned (More) keeps Up for its tabs.
                      androidx.compose.ui.focus.FocusDirection.Up, androidx.compose.ui.focus.FocusDirection.Down ->
-@@ -548,7 +549,7 @@
+@@ -548,7 +562,7 @@
      var searchEditing by remember { mutableStateOf(false) }
      val searchLeft = Modifier.onPreviewKeyEvent { e ->
          if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft && !searchEditing && lockedKey == null) {
@@ -251,7 +294,7 @@
              true
          } else false
      }
-@@ -653,11 +654,11 @@
+@@ -653,11 +667,11 @@
              val locked = lockedKey != null
              val margin = if (locked) 0.dp else fx(64)
              val rightEdge = if (locked) screenW else fx(1880)
@@ -266,7 +309,7 @@
              val cardW = if (!cardShown) 0.dp else p?.preview ?: fx(550)
              val listX = margin + colW + gapCol
              val listW = if (cardShown) (rightEdge - cardW - gapCard - listX) else rightEdge - listX
-@@ -667,7 +668,7 @@
+@@ -667,7 +681,7 @@
                      section = stringResource(R.string.common_nav_movies), category = headerLabel, count = vodCount(false, count),
                      showChevron = false, modifier = Modifier.padding(start = fx(84), top = 52.mpx).width(fx(860)),
                  )
@@ -275,7 +318,7 @@
                      searchQuery = vm.categoryQuery.collectAsStateWithLifecycle().value,
                      onSearchQueryChange = vm::setCategoryQuery,
                      entries = categoryEntries,
-@@ -701,7 +702,11 @@
+@@ -701,7 +715,11 @@
                          onEditingChange = { searchEditing = it },
                      )
                      StageTool(text = null, icon = OwnTVIcon.SORT, value = vodSortLabel(sortMode), trailingIcon = OwnTVIcon.CHEVRON_DOWN, onClick = { sortOpen = true }, modifier = Modifier.focusRequester(sortFocus))
@@ -288,7 +331,7 @@
                          options = listOf(stringResource(R.string.settings_view_grid), stringResource(R.string.settings_view_list)),
                          selected = if (viewMode == SettingsRepository.VodViewMode.LIST) 1 else 0,
                          icons = listOf(OwnTVIcon.GRID, OwnTVIcon.LIST),
-@@ -768,7 +773,7 @@
+@@ -768,7 +786,7 @@
                      }
                  } else {
                      // 156 × 234 posters 20 apart (5 across in an 860 panel); a wider panel gains columns.
@@ -297,7 +340,7 @@
                      val posterW = (listW - 20.mpx * (columns - 1)) / columns
                      // A fixed gap under the toolbar that scrolled posters never enter (as Cinematic).
                      Spacer(Modifier.height(20.mpx))
-@@ -803,7 +808,9 @@
+@@ -803,7 +821,9 @@
                                          )
                                          .onFocusChanged { if (it.isFocused) onMovieFocus(movie) }
                                          .onPreviewKeyEvent { e ->
