@@ -1,0 +1,77 @@
+name: Build Inter Flash TV 0.41 channel watermark and client VOD
+on:
+  push:
+    branches: [codex/v041-light-client-vod]
+    paths: ['client041.patch', '.github/workflows/build-v041.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch --batch -p1 < dominican033.patch
+          patch --batch -p1 < guide034.patch
+          patch --batch -p1 < guide035.patch
+          patch --batch -p1 < client-guide036.patch
+          patch --batch -p1 < layout037.patch
+          patch --batch -p1 < browse038.patch
+          patch --batch -p1 < recommended039.patch
+          patch --batch -p1 < background040.patch
+          patch --batch -p1 < client041.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install Android tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Remove obsolete technical literal entries
+        working-directory: InterFlashTV-OwnTV
+        run: python tools/i18n/check_hardcoded_strings.py prune-safe
+      - name: Classify internal folder matching literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\p{M}+' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text 'dominican' --category regex
+      - name: Classify Dominican clock formats
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'es-DO' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'America/Santo_Domingo' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'h:mm a' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'EEE d MMM' --category regex
+      - name: Classify new formatting literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'America/Santo_Domingo' --category locale
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'es-DO' --category locale
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'h:mm a' --category technical
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt --text '#' --category technical
+      - name: Classify recommended migration key
+        working-directory: OwnTV_Core-main
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt --text 'interflash_recommended_039' --category preference-key
+      - name: Test recommended settings migration
+        run: bash OwnTV_Core-main/gradlew -p OwnTV_Core-main :core:testDebugUnitTest --tests 'tv.own.owntv.core.settings.InterFlashRecommendedTest' --no-daemon --max-workers=1 -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - name: Compile APK
+        env:
+          VERSION_CODE: '41'
+          VERSION_NAME: '0.41-light-client-vod'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.PanelGuide*' --tests 'tv.own.owntv.interflash.ModeHoldPressTest' --tests 'tv.own.owntv.ui.format.DominicanTimeTest' --tests 'tv.own.owntv.ui.format.TimeFormatTest' :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v041-unsigned
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+          if-no-files-found: error
