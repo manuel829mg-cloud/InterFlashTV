@@ -1,0 +1,358 @@
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/OwnTVShell.kt
+@@ -151,6 +151,7 @@
+     val noSourceLabel = stringResource(R.string.shell_no_source)
+     val subtitleLoadFailed = stringResource(R.string.content_subtitle_load_failed)
+ 
++    val browseState = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+     val scope = rememberCoroutineScope()
+     val sidebarFocus = remember { FocusRequester() }
+     // When focus was last sent to the rail on purpose: ◀ / ▶ from the content, or the app itself
+@@ -892,6 +893,7 @@
+     // The preview runs on the ExoPlayer live engine, not mpv: stopping only mpv here (as when the preview
+     // was mpv) left it decoding and holding a provider connection after a shortcut or deep link out.
+     LaunchedEffect(selectedSection, playerMode) {
++        if (clientMode && selectedSection in listOf(MainSection.MOVIES, MainSection.SERIES) && playerMode == PlayerMode.MINI) exitPlayer()
+         if (selectedSection != MainSection.LIVE_TV && selectedSection != MainSection.EPG && playerMode == PlayerMode.NONE) liveVm.stopPreview()
+         if (selectedSection != MainSection.HOME || playerMode != PlayerMode.NONE) homeVm.stopPreview()
+     }
+@@ -920,7 +922,7 @@
+     BackHandler {
+         when {
+             clientMode && playerMode == PlayerMode.FULLSCREEN -> {
+-                dockPlayer()
++                if (zapSource == MainSection.MOVIES || zapSource == MainSection.SERIES) exitPlayer() else dockPlayer()
+                 onSelectSection(zapSource ?: MainSection.LIVE_TV)
+                 restoreFocus = true
+             }
+@@ -973,6 +975,7 @@
+     }
+ 
+     CompositionLocalProvider(
++        tv.own.owntv.ui.theme.LocalAnimationLevel provides if (clientMode) tv.own.owntv.core.theme.AnimationLevel.OFF else shellAnimationLevel,
+         LocalRemoteShortcuts provides remoteShortcutEnvironment,
+         tv.own.owntv.features.shell.components.LocalClockWeather provides (weatherInfo to weatherFahrenheit),
+     ) {
+@@ -1096,6 +1099,11 @@
+                   searchVm.setQuery("")
+                   trendingSearchActive = false
+                   restoreTrendingSearchFocus = false
++              }
++              if (clientMode && section in listOf(MainSection.MOVIES, MainSection.SERIES)) {
++                  if (playerMode != PlayerMode.NONE) exitPlayer()
++                  liveVm.stopPreview()
++                  homeVm.stopPreview()
+               }
+               onSelectSection(section)
+           }
+@@ -1191,6 +1199,7 @@
+                                 .focusGroup(),
+                         ),
+                 ) {
++                  browseState.SaveableStateProvider(selectedSection.name) {
+                     when {
+                         // More — the hub the rail's last item opens. Settings is a row in it.
+                         selectedSection == MainSection.MORE -> tv.own.owntv.features.more.MoreScreen(
+@@ -1429,6 +1438,7 @@
+                         )
+ 
+                     }
++                  }
+                 }
+             }
+           }
+@@ -1486,7 +1496,7 @@
+         // remains visible, exactly like the approved concept. It never intercepts input; fullscreen
+         // video and glass mode skip it entirely. Global Animations Off also freezes the slow pulse.
+         SolidAmbientBackdrop(
+-            glowEnabled = ambientGlowEnabled && !interFlashLiveBackground,
++            glowEnabled = ambientGlowEnabled && !interFlashLiveBackground && !clientMode,
+             pulseEnabled = ambientGlowPulse && shellAnimationLevel != tv.own.owntv.core.theme.AnimationLevel.OFF,
+             modifier = Modifier.fillMaxSize(),
+         )
+@@ -1703,7 +1713,7 @@
+                 }
+                 PlayerHud(
+                     player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
+-                    onBack = { if (clientMode) { dockPlayer(); onSelectSection(zapSource ?: MainSection.LIVE_TV) } else exitPlayer() },
++                    onBack = { if (clientMode) { if (zapSource == MainSection.MOVIES || zapSource == MainSection.SERIES) exitPlayer() else dockPlayer(); onSelectSection(zapSource ?: MainSection.LIVE_TV) } else exitPlayer() },
+                     onPip = dockPlayer, // PiP/dock works for live on either engine now
+                     onAudioMode = toAudioMode,
+                     // The channel-list overlay draws ABOVE the HUD; while it's open the HUD goes inert so
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/ChannelWatermark.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/ChannelWatermark.kt
+@@ -31,7 +31,22 @@
+         ImageRequest.Builder(context).data(settledLogo).size(128, 128).crossfade(false).build()
+     }
+     val painter = rememberAsyncImagePainter(request)
++    val brandRequest = remember(context) {
++        ImageRequest.Builder(context).data(tv.own.owntv.R.drawable.interflash_brand)
++            .size(160, 160).crossfade(false).build()
++    }
++    val brand = rememberAsyncImagePainter(brandRequest)
+     return drawWithContent {
++        val brandIntrinsic = brand.intrinsicSize
++        if (brandIntrinsic.width.isFinite() && brandIntrinsic.height.isFinite() &&
++            brandIntrinsic.width > 0f && brandIntrinsic.height > 0f) {
++            val brandEdge = minOf(size.width * 0.30f, size.height * 0.45f)
++            val brandScale = brandEdge / maxOf(brandIntrinsic.width, brandIntrinsic.height)
++            val brandSize = Size(brandIntrinsic.width * brandScale, brandIntrinsic.height * brandScale)
++            withTransform({ translate(size.width * 0.035f, size.height - brandSize.height - 16f) }) {
++                with(brand) { draw(brandSize, alpha = 0.035f) }
++            }
++        }
+         val edge = minOf(size.width * 0.32f, size.height * 0.55f)
+         val intrinsic = painter.intrinsicSize
+         if (settledLogo != null && intrinsic.width.isFinite() && intrinsic.height.isFinite() &&
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/StageRail.kt
+@@ -170,7 +170,7 @@
+         else -> StageRailOrder.firstOrNull { it in visibleSections } ?: MainSection.MORE
+     }
+     val clientMode = !tv.own.owntv.features.shell.InterFlashClientMode.administrator
+-    val items = if (clientMode) listOf(MainSection.LIVE_TV, MainSection.MORE, MainSection.MOVIES, MainSection.SERIES)
++    val items = if (clientMode) listOf(MainSection.LIVE_TV, MainSection.MOVIES, MainSection.SERIES)
+         else StageRailOrder.filter { it == MainSection.SEARCH || it in visibleSections } + MainSection.MORE
+ 
+     // Slide in from the edge (320 ms, or a snap with animations off): the capsule when it leaves
+@@ -179,8 +179,10 @@
+     val slideSpec: androidx.compose.animation.core.AnimationSpec<Float> = ownTvTween(320)
+     LaunchedEffect(open, state == RailState.HIDDEN) {
+         val target = if (state == RailState.HIDDEN) -1f else 0f
+-        if (open) slide.snapTo(-1f)
+-        slide.animateTo(target, slideSpec)
++        if (clientMode) slide.snapTo(target) else {
++            if (open) slide.snapTo(-1f)
++            slide.animateTo(target, slideSpec)
++        }
+     }
+ 
+     Box(modifier.fillMaxSize()) {
+@@ -363,9 +365,9 @@
+             else -> StageColors.NavText
+         }
+         if (!open) {
+-            if (icon == OwnTVIcon.LIVE_TV) {
+-                Image(painterResource(R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx))
+-            } else OwnTVIcon(icon, iconTint, Modifier.size(27.mpx))
++            if (icon == OwnTVIcon.MOVIES || icon == OwnTVIcon.SERIES) {
++                CatalogueRailIcon(icon, iconTint, Modifier.size(30.mpx))
++            } else OwnTVIcon(icon, iconTint, Modifier.size(30.mpx))
+             if (active && !focused) RailActiveDot(Modifier.align(Alignment.CenterEnd).offset(x = 9.mpx))
+             return@StageSurface
+         }
+@@ -374,9 +376,9 @@
+             horizontalArrangement = Arrangement.spacedBy(18.mpx),
+             verticalAlignment = Alignment.CenterVertically,
+         ) {
+-            if (icon == OwnTVIcon.LIVE_TV) {
+-                Image(painterResource(R.drawable.interflash_brand), contentDescription = null, modifier = Modifier.size(46.mpx))
+-            } else OwnTVIcon(icon, iconTint, Modifier.size(26.mpx))
++            if (icon == OwnTVIcon.MOVIES || icon == OwnTVIcon.SERIES) {
++                CatalogueRailIcon(icon, iconTint, Modifier.size(30.mpx))
++            } else OwnTVIcon(icon, iconTint, Modifier.size(30.mpx))
+             Column(Modifier.weight(1f)) {
+                 Text(
+                     label,
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/VodStage.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/VodStage.kt
+@@ -55,6 +55,9 @@
+ import androidx.compose.foundation.text.TextAutoSize
+ import androidx.tv.material3.Text
+ import coil3.compose.AsyncImage
++import coil3.compose.LocalPlatformContext
++import coil3.request.ImageRequest
++import coil3.request.crossfade
+ import coil3.compose.AsyncImagePainter
+ import androidx.compose.foundation.gestures.scrollBy
+ import androidx.compose.foundation.lazy.LazyListState
+@@ -451,7 +454,14 @@
+ internal fun VodPosterArt(url: String?, placeholder: OwnTVIcon) {
+     Box(Modifier.fillMaxSize().background(StageColors.Ink.copy(alpha = 0.06f)), contentAlignment = Alignment.Center) {
+         if (!url.isNullOrBlank()) {
+-            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
++            val context = LocalPlatformContext.current
++            val clientMode = !tv.own.owntv.features.shell.InterFlashClientMode.administrator
++            val request = remember(context, url, clientMode) {
++                ImageRequest.Builder(context).data(url).apply {
++                    if (clientMode) size(256, 384).crossfade(false)
++                }.build()
++            }
++            AsyncImage(model = request, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+         } else {
+             OwnTVIcon(placeholder, StageColors.Dim, Modifier.size(48.mpx))
+         }
+--- a/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
+@@ -156,6 +156,7 @@
+     val alreadyDownloadedMessage = stringResource(R.string.content_already_downloaded)
+     val refetchingTmdbMessage = stringResource(R.string.content_refetching_tmdb)
+     val researchingTmdbMessage = stringResource(R.string.content_researching_tmdb)
++    val clientCatalogue = !tv.own.owntv.features.shell.InterFlashClientMode.administrator && lockedKey == null
+     val railItems by vm.railItems.collectAsStateWithLifecycle()
+     val selectedKey by vm.selectedKey.collectAsStateWithLifecycle()
+     val count by vm.count.collectAsStateWithLifecycle()
+@@ -164,7 +165,7 @@
+     val sortMode by vm.sortMode.collectAsStateWithLifecycle()
+     val storedViewMode by vm.viewMode.collectAsStateWithLifecycle()
+     val selectedMovie by vm.selectedMovie.collectAsStateWithLifecycle()
+-    val selectedMovieMeta by vm.selectedMovieMeta.collectAsStateWithLifecycle()
++    val selectedMovieMeta by (if (clientCatalogue) kotlinx.coroutines.flow.flowOf(null) else vm.selectedMovieMeta).collectAsStateWithLifecycle(initialValue = null)
+     val metadataMode by vm.metadataMode.collectAsStateWithLifecycle()
+     val moveState by vm.moveState.collectAsStateWithLifecycle()
+     val categoryMoveState by vm.categoryMoveState.collectAsStateWithLifecycle()
+@@ -241,11 +242,11 @@
+     val settingsVm: tv.own.owntv.features.settings.SettingsViewModel = koinViewModel()
+     val vodLayout by settingsVm.vodLayout.collectAsStateWithLifecycle()
+     // Cinematic is the browse section's; More → Favourites / History pin the plain Separate list.
+-    val cinematic = vodLayout == SettingsRepository.VodLayout.CINEMATIC && lockedKey == null
++    val cinematic = !clientCatalogue && vodLayout == SettingsRepository.VodLayout.CINEMATIC && lockedKey == null
+     val cinematicDetailsPct by settingsVm.cinematicDetailsHeight(PanelSection.MOVIES).collectAsStateWithLifecycle()
+     // Cinematic is grid-only: the List rows have nowhere to put a full-bleed backdrop. The stored
+     // choice is deliberately not rewritten, so switching back to Separate restores the user's List.
+-    val viewMode = if (cinematic) SettingsRepository.VodViewMode.GRID else storedViewMode
++    val viewMode = if (cinematic || clientCatalogue) SettingsRepository.VodViewMode.GRID else storedViewMode
+     val chNavEnabled by settingsVm.chNavEnabled.collectAsStateWithLifecycle()
+     val chNavUpSkip by settingsVm.chNavUpSkip.collectAsStateWithLifecycle()
+     val chNavDownSkip by settingsVm.chNavDownSkip.collectAsStateWithLifecycle()
+@@ -276,7 +277,7 @@
+     var sheetHadFocus by remember { mutableStateOf(false) }
+     var sortOpen by remember { mutableStateOf(false) }
+     val sortFocus = remember { FocusRequester() }
+-    val categoriesVisible = lockedKey == null && (!cinematic || categoriesOpen)
++    val categoriesVisible = lockedKey == null && (!(cinematic || clientCatalogue) || categoriesOpen)
+     val railCounts by (if (categoriesVisible) vm.railCounts else remember { kotlinx.coroutines.flow.MutableStateFlow(emptyMap<LiveKey, Int>()) })
+         .collectAsStateWithLifecycle()
+     val catListState = rememberLazyListState()
+@@ -419,7 +420,7 @@
+     DisposableEffect(onEntryHook, cinematic) {
+         onEntryHook?.invoke {
+             // The column's own row path (scrolls to it if needed), not the list's first child: the search field.
+-            if (!cinematic && lockedKey == null) { railFocusRow = selectedIndex; true } else focusCurrentTitle()
++            if (!cinematic && !clientCatalogue && lockedKey == null) { railFocusRow = selectedIndex; true } else focusCurrentTitle()
+         }
+         onDispose { onEntryHook?.invoke(null) }
+     }
+@@ -533,7 +534,7 @@
+                 when (requestedFocusDirection) {
+                     // Cinematic's first column opens the sheet itself; in Separate, ◀ out of the first
+                     // column reaches the category column. Nothing lies to the right.
+-                    androidx.compose.ui.focus.FocusDirection.Left -> if (cinematic) cancelFocusChange()
++                    androidx.compose.ui.focus.FocusDirection.Left -> if (cinematic || clientCatalogue) cancelFocusChange()
+                     androidx.compose.ui.focus.FocusDirection.Right -> cancelFocusChange()
+                     // Pinned (More) keeps Up for its tabs.
+                     androidx.compose.ui.focus.FocusDirection.Up, androidx.compose.ui.focus.FocusDirection.Down ->
+@@ -548,7 +549,7 @@
+     var searchEditing by remember { mutableStateOf(false) }
+     val searchLeft = Modifier.onPreviewKeyEvent { e ->
+         if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft && !searchEditing && lockedKey == null) {
+-            if (cinematic) categoriesOpen = true else runCatching { railFocus.requestFocus() }
++            if (cinematic || clientCatalogue) categoriesOpen = true else runCatching { railFocus.requestFocus() }
+             true
+         } else false
+     }
+@@ -653,11 +654,11 @@
+             val locked = lockedKey != null
+             val margin = if (locked) 0.dp else fx(64)
+             val rightEdge = if (locked) screenW else fx(1880)
+-            val gapCol = if (locked) 0.dp else fx(26)
++            val gapCol = if (locked || clientCatalogue) 0.dp else fx(26)
+             val gapCard = fx(30)
+-            val cardShown = panelShares?.preview != 0
++            val cardShown = !clientCatalogue && panelShares?.preview != 0
+             val p = panelShares?.let { computePanelWidths(it, rightEdge - margin, gapCol + if (cardShown) gapCard else 0.dp) }
+-            val colW = if (locked) 0.dp else p?.category ?: fx(350)
++            val colW = if (locked || clientCatalogue) 0.dp else p?.category ?: fx(350)
+             val cardW = if (!cardShown) 0.dp else p?.preview ?: fx(550)
+             val listX = margin + colW + gapCol
+             val listW = if (cardShown) (rightEdge - cardW - gapCard - listX) else rightEdge - listX
+@@ -667,7 +668,7 @@
+                     section = stringResource(R.string.common_nav_movies), category = headerLabel, count = vodCount(false, count),
+                     showChevron = false, modifier = Modifier.padding(start = fx(84), top = 52.mpx).width(fx(860)),
+                 )
+-                LiveCategories(
++                if (!clientCatalogue) LiveCategories(
+                     searchQuery = vm.categoryQuery.collectAsStateWithLifecycle().value,
+                     onSearchQueryChange = vm::setCategoryQuery,
+                     entries = categoryEntries,
+@@ -701,7 +702,11 @@
+                         onEditingChange = { searchEditing = it },
+                     )
+                     StageTool(text = null, icon = OwnTVIcon.SORT, value = vodSortLabel(sortMode), trailingIcon = OwnTVIcon.CHEVRON_DOWN, onClick = { sortOpen = true }, modifier = Modifier.focusRequester(sortFocus))
+-                    StageSegmented(
++                    if (clientCatalogue) StageTool(
++                        text = stringResource(R.string.content_category_browser_title), icon = OwnTVIcon.LIST,
++                        onClick = { categoriesOpen = true },
++                    )
++                    if (!clientCatalogue) StageSegmented(
+                         options = listOf(stringResource(R.string.settings_view_grid), stringResource(R.string.settings_view_list)),
+                         selected = if (viewMode == SettingsRepository.VodViewMode.LIST) 1 else 0,
+                         icons = listOf(OwnTVIcon.GRID, OwnTVIcon.LIST),
+@@ -768,7 +773,7 @@
+                     }
+                 } else {
+                     // 156 × 234 posters 20 apart (5 across in an 860 panel); a wider panel gains columns.
+-                    val columns = ((listW + 20.mpx) / 176.mpx).toInt().coerceAtLeast(1)
++                    val columns = ((listW + 20.mpx) / (if (clientCatalogue) 216.mpx else 176.mpx)).toInt().coerceAtLeast(1)
+                     val posterW = (listW - 20.mpx * (columns - 1)) / columns
+                     // A fixed gap under the toolbar that scrolled posters never enter (as Cinematic).
+                     Spacer(Modifier.height(20.mpx))
+@@ -803,7 +808,9 @@
+                                         )
+                                         .onFocusChanged { if (it.isFocused) onMovieFocus(movie) }
+                                         .onPreviewKeyEvent { e ->
+-                                            if (e.type == KeyEventType.KeyDown && e.key == Key.Menu) { openMenu(movie, index); true } else false
++                                            if (e.type == KeyEventType.KeyDown && e.key == Key.DirectionLeft && clientCatalogue && index % columns == 0) {
++                                                categoriesOpen = true; true
++                                            } else if (e.type == KeyEventType.KeyDown && e.key == Key.Menu) { openMenu(movie, index); true } else false
+                                         },
+                                 ) { VodPosterArt(posterOf(movie), OwnTVIcon.MOVIES) }
+                             }
+--- /dev/null
++++ b/InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/shell/components/CatalogueRailIcon.kt
+@@ -0,0 +1,45 @@
++package tv.own.owntv.features.shell.components
++
++import androidx.compose.foundation.Canvas
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.StrokeCap
++import androidx.compose.ui.graphics.StrokeJoin
++import androidx.compose.ui.graphics.drawscope.Stroke
++import androidx.compose.ui.graphics.drawscope.scale
++import tv.own.owntv.ui.components.OwnTVIcon
++
++/** Lightweight cinema silhouettes: a clapperboard and stacked film frames. */
++@Composable
++internal fun CatalogueRailIcon(icon: OwnTVIcon, tint: Color, modifier: Modifier = Modifier) {
++    val outline = remember(icon) {
++        Path().apply {
++            if (icon == OwnTVIcon.MOVIES) {
++                moveTo(3f, 8f); lineTo(21f, 8f); lineTo(21f, 21f); lineTo(3f, 21f); close()
++                moveTo(3f, 8f); lineTo(2f, 4f); lineTo(20f, 1f); lineTo(21f, 5f); close()
++                moveTo(7f, 3.2f); lineTo(9f, 6.8f)
++                moveTo(13f, 2.2f); lineTo(15f, 5.8f)
++            } else {
++                moveTo(3f, 8f); lineTo(21f, 8f); lineTo(21f, 21f); lineTo(3f, 21f); close()
++                moveTo(5f, 5f); lineTo(19f, 5f)
++                moveTo(7f, 2f); lineTo(17f, 2f)
++                moveTo(6f, 8f); lineTo(6f, 21f)
++                moveTo(18f, 8f); lineTo(18f, 21f)
++                moveTo(3f, 14.5f); lineTo(6f, 14.5f)
++                moveTo(18f, 14.5f); lineTo(21f, 14.5f)
++            }
++        }
++    }
++    val play = remember { Path().apply { moveTo(10f, 11.5f); lineTo(15f, 14.5f); lineTo(10f, 17.5f); close() } }
++    Canvas(modifier) {
++        val factor = size.minDimension / 24f
++        scale(factor, factor, pivot = Offset.Zero) {
++            drawPath(outline, tint, style = Stroke(1.7f, cap = StrokeCap.Round, join = StrokeJoin.Round))
++            drawPath(play, tint)
++        }
++    }
++}
