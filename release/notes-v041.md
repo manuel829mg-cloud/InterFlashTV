@@ -2,7 +2,7 @@ Inter Flash TV 0.41 — fondo de canal y catálogos
 
 Base: v0.40, preserving the existing layout, guide and player. The client rail adds Movies and Series alongside TV and Favorites. Back from fullscreen VOD returns to the corresponding catalogue.
 
-Live background: a static dark-blue-to-black gradient also applies while Glass is enabled. A single selected-channel logo is drawn behind content at 6% opacity, decoded at 128x128 maximum, with 250ms debounce for rapid scrolling. The existing image loader/cache is reused. No new dependencies, bundled artwork, blur or background animation. Missing/failed logos leave the gradient. Movie/series grids retain their existing lazy paging.
+Live background: a static dark-blue-to-black gradient also applies while Glass is enabled. A single selected-channel logo is drawn behind content at 6% opacity, requested at a 128x128 decode target, with 250ms debounce for rapid scrolling. The existing image loader/cache is reused. No new dependencies, bundled artwork, blur or background animation. Missing/failed logos leave the gradient. Movie/series grids retain their existing lazy paging.
 
 Reproduce: workflow .github/workflows/build-v041.yml, branch codex/v041-light-client-vod, build commit 5304fb61bc0c0bb66f3a0a94b228e1861168bf46. Source comes from the pinned v0.31 release plus patches 033–040 and client041.patch.
 
