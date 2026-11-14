@@ -160,6 +160,19 @@ public class MainActivity extends Activity {
     }
     String m3u = downloadPlaylist(playlistUrl);
     if (!m3u.trim().startsWith("#EXTM3U")) throw new IOException("La lista recibida no es M3U válida.");
+    org.json.JSONArray vodSources = config.optJSONArray("vod_sources");
+    if (vodSources != null) {
+     for (int i = 0; i < vodSources.length(); i++) {
+      JSONObject vod = vodSources.optJSONObject(i);
+      if (vod == null) continue;
+      String vodUrl = vod.optString("url", "");
+      String mediaType = vod.optString("type", "");
+      if (vodUrl.isEmpty() || !("movie".equals(mediaType) || "series".equals(mediaType))) continue;
+      String vodM3u = downloadPlaylist(vodUrl);
+      if (!vodM3u.trim().startsWith("#EXTM3U")) throw new IOException("El catálogo VOD no es una lista M3U válida.");
+      m3u = appendVodPlaylist(m3u, vodM3u, mediaType);
+     }
+    }
     String quotedM3U = JSONObject.quote(m3u);
     String quotedName = JSONObject.quote(config.optString("name", "Inter Flash TV"));
     String js = "(function(){if(!window.importCustomM3U)return false;window.importCustomM3U(" + quotedM3U + "," + quotedName + ");return true;})()";
@@ -175,6 +188,22 @@ public class MainActivity extends Activity {
     panelBusy.set(false);
    }
   });
+ }
+
+ private String appendVodPlaylist(String live, String vod, String mediaType) {
+  StringBuilder out = new StringBuilder(live.trim());
+  if (out.length() > 0) out.append('\n');
+  String[] lines = vod.split("\\r?\\n");
+  for (String raw : lines) {
+   String line = raw.trim();
+   if (line.isEmpty() || line.equalsIgnoreCase("#EXTM3U")) continue;
+   if (line.startsWith("#EXTINF:")) {
+    line = line.replaceAll("(?i)\\s+(?:type|tvg-type)=\"[^\"]*\"", "");
+    line = line.replaceFirst("(?i)#EXTINF:", "#EXTINF: type=\"" + mediaType + "\" ");
+   }
+   out.append(line).append('\n');
+  }
+  return out.toString();
  }
 
  private JSONObject requestJson(String path, String method, String bearer, JSONObject body, int[] statusOut) throws Exception {
