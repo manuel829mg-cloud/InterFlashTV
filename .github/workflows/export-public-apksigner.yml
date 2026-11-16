@@ -1,0 +1,27 @@
+name: Export public Android APK signing tool (no keys)
+on:
+  push:
+    branches: [diagnostics/interflash-v055-apk-identity]
+    paths: ['.github/workflows/export-public-apksigner.yml']
+permissions:
+  contents: read
+jobs:
+  tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect Android SDK signing and inspection tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          echo "Tool version: $(basename "$TOOLS")"
+          mkdir -p /tmp/android-apksig-tools
+          cp "$TOOLS/lib/apksigner.jar" /tmp/android-apksig-tools/apksigner.jar
+          cp "$TOOLS/aapt" /tmp/android-apksig-tools/aapt
+          cp "$TOOLS/zipalign" /tmp/android-apksig-tools/zipalign
+          file /tmp/android-apksig-tools/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PUBLIC-Android-APK-Tools-NO-SECRETS
+          path: /tmp/android-apksig-tools/
+          if-no-files-found: error
