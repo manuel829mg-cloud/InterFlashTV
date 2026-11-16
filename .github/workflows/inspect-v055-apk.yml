@@ -46,6 +46,5 @@ jobs:
           echo 'APK signing verification output (public metadata):'
           sed -n '1,90p' /tmp/apksigner-output.txt
           echo 'APK signature-related zip entries:'
-          unzip -Z1 /tmp/interflash-v055.apk | grep -Ei '^META-INF/.*(RSA|DSA|EC|SF)
- | head -10 || true
+          unzip -Z1 /tmp/interflash-v055.apk | grep -i 'META-INF' | grep -Ei '(RSA|DSA|EC|SF)' | head -10 || true
           echo 'No private signing keys are stored in this workflow.'
