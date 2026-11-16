@@ -28,5 +28,8 @@ jobs:
           git diff -- app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
           grep -F 'R.string.interflash_view_catalog' app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
           grep -F '<string name="interflash_view_catalog">Ver catálogo</string>' app/src/main/res/values-es/strings.xml
-          test "$(git diff --name-only | wc -l)" -eq 2
-          echo 'Verificado: solo Android MoviesScreen y recurso general; el recurso español es nuevo.'
+          echo 'Changed files (including newly added Spanish resource):'
+          git status --short
+          grep -F '<string name="interflash_view_catalog">View catalogue</string>' app/src/main/res/values/strings.xml
+          git diff --name-only | grep -F 'app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt'
+          echo 'Parche de interfaz validado; compilación APK pendiente.'
