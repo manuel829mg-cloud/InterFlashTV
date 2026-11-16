@@ -1,0 +1,118 @@
+name: Build v0.56 from exact recovered v0.55 source (unsigned)
+on:
+  push:
+    branches: [feature/v056-exact-v055-signed-candidate]
+    paths: ['release/source-delta-v042-to-v055.patch.xz.base64', 'patch_v056_movie_catalog.py', '.github/workflows/build-v056-exact-055.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch --batch -p1 < dominican033.patch
+          patch --batch -p1 < guide034.patch
+          patch --batch -p1 < guide035.patch
+          patch --batch -p1 < client-guide036.patch
+          patch --batch -p1 < layout037.patch
+          patch --batch -p1 < browse038.patch
+          patch --batch -p1 < recommended039.patch
+          patch --batch -p1 < background040.patch
+          patch --batch -p1 < client041.patch
+          patch --batch -p1 < client042.patch
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+      - name: Install Android tools
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f | sort | tail -1)
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" 'platforms;android-37.0' 'build-tools;36.0.0' 'platform-tools'
+      - name: Remove obsolete technical literal entries
+        working-directory: InterFlashTV-OwnTV
+        run: python tools/i18n/check_hardcoded_strings.py prune-safe
+      - name: Classify internal folder matching literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text '\p{M}+' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/live/LiveViewModel.kt --text 'dominican' --category regex
+      - name: Classify Dominican clock formats
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'es-DO' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'America/Santo_Domingo' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'h:mm a' --category regex
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/features/shell/components/StageStatus.kt --text 'EEE d MMM' --category regex
+      - name: Classify new formatting literals
+        working-directory: InterFlashTV-OwnTV
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'America/Santo_Domingo' --category locale
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'es-DO' --category locale
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/ui/format/DominicanTime.kt --text 'h:mm a' --category technical
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path app/src/main/java/tv/own/owntv/player/PlayerHudChrome.kt --text '#' --category technical
+      - name: Classify recommended migration key
+        working-directory: OwnTV_Core-main
+        run: |
+          python tools/i18n/check_hardcoded_strings.py classify-safe --path core/src/main/java/tv/own/owntv/core/settings/SettingsRepository.kt --text 'interflash_recommended_039' --category preference-key
+      - name: Restore exact source 0.55 from audited 0.42 and recovered delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, lzma, base64, subprocess
+          base = Path("InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt")
+          before = hashlib.sha256(base.read_bytes()).hexdigest()
+          expected_before = "3d3d4242fcb06849e371a930c0abf90229f39a0fcdaf2961189adb8d7caa3cbd"
+          assert before == expected_before, "Reconstructed 0.42 doesn't match owned source; refusing to patch"
+          encoded = Path("release/source-delta-v042-to-v055.patch.xz.base64").read_text(encoding="ascii").strip()
+          delta = lzma.decompress(base64.b64decode(encoded))
+          subprocess.run(["patch", "--batch", "-p1", "--fuzz=0"], input=delta, check=True)
+          restored = hashlib.sha256(base.read_bytes()).hexdigest()
+          expected_after = "21eab054b8d018d9818f872b9668f7e16559b1e30ec51a78b8044370eccb003b"
+          assert restored == expected_after, "Recovered 0.55 source mismatch"
+          print("Recovered exact Inter Flash TV 0.55 Kotlin source and interface successfully.")
+          PY
+      - name: Add only the requested native movie catalogue opener
+        run: |
+          set -euo pipefail
+          python3 patch_v056_movie_catalog.py InterFlashTV-OwnTV
+          grep -n -F 'interflash_view_catalog' InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
+          test "$(grep -c 'R.string.interflash_view_catalog' InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt)" -eq 2
+          grep -F '<string name="interflash_view_catalog">Ver catálogo</string>' InterFlashTV-OwnTV/app/src/main/res/values-es/strings.xml
+      - name: Compile APK
+        env:
+          VERSION_CODE: '56'
+          VERSION_NAME: '0.56-ver-catalogo'
+        run: bash InterFlashTV-OwnTV/build-interflash.sh :app:testStandardDebugUnitTest --tests 'tv.own.owntv.interflash.PanelGuide*' --tests 'tv.own.owntv.interflash.ModeHoldPressTest' --tests 'tv.own.owntv.ui.format.DominicanTimeTest' --tests 'tv.own.owntv.ui.format.TimeFormatTest' :app:assembleStandardRelease --no-daemon -Dorg.gradle.jvmargs='-Xmx4096m -XX:MaxMetaspaceSize=2048m -Dfile.encoding=UTF-8'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-v056-EXACT055-UNSIGNED-CANDIDATE
+          path: InterFlashTV-OwnTV/app/build/outputs/apk/standard/release/*.apk
+          if-no-files-found: error
+
+      - name: Package official Android signing verification tools (public binaries only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/if-android-tools
+          cp "$ANDROID_HOME/build-tools/36.0.0/lib/apksigner.jar" /tmp/if-android-tools/apksigner.jar
+          cp "$ANDROID_HOME/build-tools/36.0.0/aapt" /tmp/if-android-tools/aapt
+          cp "$ANDROID_HOME/build-tools/36.0.0/zipalign" /tmp/if-android-tools/zipalign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: InterFlashTV-Android-Signing-Tools-PUBLIC
+          path: /tmp/if-android-tools/
+          if-no-files-found: error
