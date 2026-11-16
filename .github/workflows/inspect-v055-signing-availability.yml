@@ -1,0 +1,40 @@
+name: Check original v0.55 signing key availability (safe)
+on:
+  push:
+    branches: [diagnostics/interflash-v055-apk-identity]
+    paths: [.github/workflows/inspect-v055-signing-availability.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check existing private signing key without disclosure
+        shell: bash
+        env:
+          IF_KEYSTORE_B64: ${{ secrets.IF_TV_KEYSTORE_BASE64 }}
+          IF_KEYSTORE_PASSWORD: ${{ secrets.IF_TV_KEYSTORE_PASSWORD }}
+          IF_KEY_ALIAS: ${{ secrets.IF_TV_KEY_ALIAS }}
+          EXPECTED: b4ae6bafa2c790205e03fd4b34e71b8a272709027f1424df3ec5f85a625917b1
+        run: |
+          set -euo pipefail
+          if [[ -z "$IF_KEYSTORE_B64" || -z "$IF_KEYSTORE_PASSWORD" || -z "$IF_KEY_ALIAS" ]]; then
+            echo "Original signing key not configured in these GitHub repository secrets."
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/if-tv-signing"
+          chmod 700 "$RUNNER_TEMP/if-tv-signing"
+          trap 'rm -rf "$RUNNER_TEMP/if-tv-signing"' EXIT
+          printf '%s' "$IF_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/if-tv-signing/key.jks"
+          chmod 600 "$RUNNER_TEMP/if-tv-signing/key.jks"
+          if ! keytool -list -v -keystore "$RUNNER_TEMP/if-tv-signing/key.jks" -storepass "$IF_KEYSTORE_PASSWORD" -alias "$IF_KEY_ALIAS" > "$RUNNER_TEMP/if-tv-signing/cert.txt" 2>/dev/null; then
+            echo "Signing key exists but could not be read using stored credentials."
+            exit 0
+          fi
+          FINGERPRINT=$(sed -n -E 's/.*SHA256: ([[:xdigit:]:]+).*/\1/p' "$RUNNER_TEMP/if-tv-signing/cert.txt" | head -1 | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          if [[ "$FINGERPRINT" == "$EXPECTED" ]]; then
+            echo "MATCH: repository has original v0.55 signing certificate. Ready for in-place build after source reconstruction."
+          else
+            echo "MISMATCH: repository signing key differs from the installed v0.55. Do not use for update."
+          fi
