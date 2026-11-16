@@ -1,0 +1,35 @@
+name: Verify isolated native movie catalogue label patch
+on:
+  push:
+    branches:
+      - feature/interflash-tv-v056-native-ver-catalogo
+    paths:
+      - 'patches/patch_owntv_movies_catalog.py'
+      - '.github/workflows/verify-native-catalog-patch.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  patch-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Obtain clean OwnTV v5.2.2 source
+        run: git clone --depth 1 --branch v5.2.2 https://github.com/ahXN00/OwnTV.git /tmp/owntv
+      - name: Apply minimum Android TV label change
+        run: python3 patches/patch_owntv_movies_catalog.py /tmp/owntv
+      - name: Check only expected files changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd /tmp/owntv
+          git diff --check
+          echo 'Actual Kotlin changes:'
+          git diff -- app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
+          grep -F 'R.string.interflash_view_catalog' app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt
+          grep -F '<string name="interflash_view_catalog">Ver catálogo</string>' app/src/main/res/values-es/strings.xml
+          echo 'Changed files (including newly added Spanish resource):'
+          git status --short
+          grep -F '<string name="interflash_view_catalog">View catalogue</string>' app/src/main/res/values/strings.xml
+          git diff --name-only | grep -F 'app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt'
+          echo 'Parche de interfaz validado; compilación APK pendiente.'
