@@ -78,3 +78,23 @@ jobs:
                           print(f"{j+1:04}: {data[j][:180]}")
                           total+=1
           PY
+      - name: Print targeted cinema and series source excerpts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv")
+          ranges={
+            "features/movies/MoviesScreen.kt":[(570,730),(490,510)],
+            "features/series/SeriesScreen.kt":[(635,700),(735,785),(280,360)],
+            "features/shell/components/CinemaCategoryRows.kt":[(88,252)],
+            "features/shell/OwnTVShell.kt":[(860,910)]
+          }
+          for f,rng in ranges.items():
+              p=root/f
+              s=p.read_text().splitlines()
+              print("TARGET",f)
+              for a,b in rng:
+                  for i in range(a-1,min(b,len(s))):
+                      print(f"{i+1:04}: {s[i]}")
+          PY
