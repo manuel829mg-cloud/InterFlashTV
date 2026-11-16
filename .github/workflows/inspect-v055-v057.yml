@@ -1,0 +1,100 @@
+name: Inspect exact v0.55 cinema and series UI
+on:
+  push:
+    branches: [feature/v057-catalog-rows-series]
+    paths: ['.github/workflows/inspect-v055-v057.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prepare exact source
+        run: |
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o source.zip
+          unzip -q source.zip
+          patch --batch -p1 < dominican033.patch
+          patch --batch -p1 < guide034.patch
+          patch --batch -p1 < guide035.patch
+          patch --batch -p1 < client-guide036.patch
+          patch --batch -p1 < layout037.patch
+          patch --batch -p1 < browse038.patch
+          patch --batch -p1 < recommended039.patch
+          patch --batch -p1 < background040.patch
+          patch --batch -p1 < client041.patch
+          patch --batch -p1 < client042.patch
+      - name: Restore exact source 0.55 from audited 0.42 and recovered delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, lzma, base64, subprocess
+          base = Path("InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt")
+          before = hashlib.sha256(base.read_bytes()).hexdigest()
+          expected_before = "3d3d4242fcb06849e371a930c0abf90229f39a0fcdaf2961189adb8d7caa3cbd"
+          assert before == expected_before, "Reconstructed 0.42 doesn't match owned source; refusing to patch"
+          encoded = Path("release/source-delta-v042-to-v055.patch.xz.base64").read_text(encoding="ascii").strip()
+          delta = lzma.decompress(base64.b64decode(encoded))
+          # The 0.42 build adds generated i18n validation entries before restore.
+          # Restore every app/core source file exactly, but keep the generated
+          # safe_literals list instead of applying an outdated context diff.
+          import re
+          chunks = re.split(rb"(?=^--- (?:a/|/dev/null))", delta, flags=re.M)
+          delta = b"".join(c for c in chunks if b"--- a/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt" not in c)
+          subprocess.run(["patch", "--batch", "-p1", "--fuzz=0"], input=delta, check=True)
+          restored = hashlib.sha256(base.read_bytes()).hexdigest()
+          expected_after = "21eab054b8d018d9818f872b9668f7e16559b1e30ec51a78b8044370eccb003b"
+          assert restored == expected_after, "Recovered 0.55 source mismatch"
+          print("Recovered exact Inter Flash TV 0.55 Kotlin source and interface successfully.")
+          PY
+      - name: Inspect movie rows, folder UI and episode selection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path("InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv")
+          for file in sorted(root.rglob("*.kt")):
+              if any(x in file.name for x in ("MoviesScreen","SeriesScreen","CinemaCategoryRows","OwnTVShell","SeriesDetails","Episode","Cinema")):
+                  data=file.read_text().splitlines()
+                  print("\nFILE",file.relative_to(root),"lines",len(data))
+                  patterns=re.compile(r"categor|Category|series|Series|episode|Episode|season|Season|Movie|poster|Poster|Rail|rail|onClick|onSelect|onPlay|onPress|focus|Focus|landscape|height|Height|width|Width|itemSize|folder|Folder|StageTool")
+                  idx=[i for i,line in enumerate(data) if patterns.search(line)]
+                  groups=[]
+                  for i in idx:
+                      a=max(0,i-3); b=min(len(data),i+4)
+                      if groups and a<=groups[-1][1]: groups[-1]=(groups[-1][0],max(b,groups[-1][1]))
+                      else: groups.append((a,b))
+                  total=0
+                  for a,b in groups:
+                      if total>310: print("TRUNCATED");break
+                      print("\n--",a+1,"-",b)
+                      for j in range(a,b):
+                          print(f"{j+1:04}: {data[j][:180]}")
+                          total+=1
+          PY
+      - name: Print targeted cinema and series source excerpts
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv")
+          ranges={
+            "features/movies/MoviesScreen.kt":[(570,730),(490,510)],
+            "features/series/SeriesScreen.kt":[(635,700),(735,785),(280,360)],
+            "features/shell/components/CinemaCategoryRows.kt":[(88,252)],
+            "features/shell/OwnTVShell.kt":[(860,910)]
+          }
+          for f,rng in ranges.items():
+              p=root/f
+              s=p.read_text().splitlines()
+              print("TARGET",f)
+              for a,b in rng:
+                  for i in range(a-1,min(b,len(s))):
+                      print(f"{i+1:04}: {s[i]}")
+          PY
