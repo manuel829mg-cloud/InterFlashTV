@@ -20,16 +20,18 @@ def patch(root: Path):
         raise SystemExit("Category counts are not present. Refusing to patch.")
     before1 = "StageTool(text = stringResource(R.string.content_category_browser_title), icon = OwnTVIcon.LIST, onClick = { categoriesOpen = true })"
     before2 = "text = stringResource(R.string.content_category_browser_title), icon = OwnTVIcon.LIST,"
-    if src.count(before1) != 1 or src.count(before2) != 1:
-        raise SystemExit("The two catalog buttons do not match the audited source.")
+    if src.count(before1) != 1:
+        raise SystemExit("Cinematic catalogue button changed.")
+    src_first = src.replace(before1, "StageTool(text = stringResource(R.string.interflash_view_catalog), icon = OwnTVIcon.LIST, onClick = { categoriesOpen = true })")
+    if src_first.count(before2) != 1:
+        raise SystemExit("Client catalogue button changed.")
     en = res_en.read_text(encoding="utf-8")
     es = res_es.read_text(encoding="utf-8")
     for text in (en, es):
         if text.count("</resources>") != 1 or 'name="interflash_view_catalog"' in text:
             raise SystemExit("Translation file not as expected.")
     movie.write_text(
-        src.replace(before1, "StageTool(text = stringResource(R.string.interflash_view_catalog), icon = OwnTVIcon.LIST, onClick = { categoriesOpen = true })")
-           .replace(before2, "text = stringResource(R.string.interflash_view_catalog), icon = OwnTVIcon.LIST,"),
+        src_first.replace(before2, "text = stringResource(R.string.interflash_view_catalog), icon = OwnTVIcon.LIST,"),
         encoding="utf-8",
     )
     res_en.write_text(en.replace("</resources>", '    <string name="interflash_view_catalog">View catalogue</string>\n</resources>'), encoding="utf-8")
