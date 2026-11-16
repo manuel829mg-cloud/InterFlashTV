@@ -32,5 +32,15 @@ jobs:
           echo "Using Android build tools: $TOOLS"
           "$TOOLS/aapt" dump badging /tmp/interflash-v055.apk | grep -E '^(package:|sdkVersion:|targetSdkVersion:|application-label:|native-code:)' | head -20
           echo 'Signing certificate (public fingerprint only):'
-          "$TOOLS/apksigner" verify --print-certs /tmp/interflash-v055.apk | grep -E 'Signer #1 certificate (SHA-256|SHA-1|DN)|Verified using'
-          echo 'Do not print or upload private signing keys.'
+          set +e
+          "$TOOLS/apksigner" verify --print-certs /tmp/interflash-v055.apk >/tmp/apksigner-output.txt 2>&1
+          STATUS=$?
+          set -e
+          echo "apksigner verification exit: $STATUS"
+          # APK signing certificates and validation errors are public metadata. Never print signing keys.
+          grep -E 'Signer #|signer #|Verified using|DOES NOT VERIFY|ERROR:|Exception|Failed to' /tmp/apksigner-output.txt | head -60 || true
+          if [ "$STATUS" -ne 0 ]; then
+            echo 'Signature verification failed; showing the first 25 lines of diagnostic output:'
+            head -25 /tmp/apksigner-output.txt
+          fi
+          echo 'No private signing keys are stored in this workflow.'
