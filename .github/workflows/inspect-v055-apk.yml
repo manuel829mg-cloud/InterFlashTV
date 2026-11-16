@@ -1,0 +1,36 @@
+name: Inspect Inter Flash TV 0.55 APK (read-only)
+on:
+  push:
+    branches:
+      - diagnostics/interflash-v055-apk-identity
+    paths:
+      - '.github/workflows/inspect-v055-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download published 0.55 APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error \
+            'https://github.com/manuel829mg-cloud/interflash-gui-n-app/releases/download/v0.55-prueba/InterFlashTV-v0.55-foco-fijo-PRUEBA.apk' \
+            -o /tmp/interflash-v055.apk
+          test "$(stat -c%s /tmp/interflash-v055.apk)" -gt 10000000
+          echo 'Published APK SHA256:'
+          sha256sum /tmp/interflash-v055.apk
+          echo 'Expected sha256: f807174df24f8df56df759fc5ea80d84b3712aee1c2e339b8db06b754f4f9fac'
+          echo 'f807174df24f8df56df759fc5ea80d84b3712aee1c2e339b8db06b754f4f9fac  /tmp/interflash-v055.apk' | sha256sum -c -
+      - name: APK package and version
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOOLS=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)
+          echo "Using Android build tools: $TOOLS"
+          "$TOOLS/aapt" dump badging /tmp/interflash-v055.apk | grep -E '^(package:|sdkVersion:|targetSdkVersion:|application-label:|native-code:)' | head -20
+          echo 'Signing certificate (public fingerprint only):'
+          "$TOOLS/apksigner" verify --print-certs /tmp/interflash-v055.apk | grep -E 'Signer #1 certificate (SHA-256|SHA-1|DN)|Verified using'
+          echo 'Do not print or upload private signing keys.'
