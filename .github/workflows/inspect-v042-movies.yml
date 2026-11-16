@@ -1,0 +1,31 @@
+name: Inspect reconstructed OwnTV v0.42 Movies screen
+on:
+  push:
+    branches: [feature/v056-catalog-from-v042-source-candidate]
+    paths: [.github/workflows/inspect-v042-movies.yml]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct patched 0.42 source
+        run: |
+          set -euo pipefail
+          curl -fLsS https://github.com/manuel829mg-cloud/InterFlashTV/releases/download/v0.31-clean-rail/InterFlashTV-OwnTV-source-v0.31-clean-rail.zip -o /tmp/source.zip
+          unzip -q /tmp/source.zip
+          for p in dominican033.patch guide034.patch guide035.patch client-guide036.patch layout037.patch browse038.patch recommended039.patch background040.patch client041.patch client042.patch; do patch --batch -p1 < "$p"; done
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('InterFlashTV-OwnTV/app/src/main/java/tv/own/owntv/features/movies/MoviesScreen.kt')
+          s=p.read_text()
+          terms=('content_category_browser_title','vodCategoryEntries','StageTool','categoriesOpen','railCounts','LiveCategories','CategoryBrowserOverlay')
+          print('MoviesScreen lines:', len(s.splitlines()))
+          for i,line in enumerate(s.splitlines(),1):
+              if any(t in line for t in terms):
+                  print(f'{i}: {line.strip()[:320]}')
+          print('RESOURCE FILES:', [str(x) for x in Path('InterFlashTV-OwnTV/app/src/main/res').glob('values*/strings.xml')][:10])
+          print('PACKAGE:', next((l.strip() for l in Path('InterFlashTV-OwnTV/app/build.gradle.kts').read_text().splitlines() if 'applicationId =' in l),'<not found>'))
+          PY
