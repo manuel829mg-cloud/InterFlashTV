@@ -79,6 +79,12 @@ jobs:
           assert before == expected_before, "Reconstructed 0.42 doesn't match owned source; refusing to patch"
           encoded = Path("release/source-delta-v042-to-v055.patch.xz.base64").read_text(encoding="ascii").strip()
           delta = lzma.decompress(base64.b64decode(encoded))
+          # The 0.42 build adds generated i18n validation entries before restore.
+          # Restore every app/core source file exactly, but keep the generated
+          # safe_literals list instead of applying an outdated context diff.
+          import re
+          chunks = re.split(rb"(?=^--- (?:a/|/dev/null))", delta, flags=re.M)
+          delta = b"".join(c for c in chunks if b"--- a/InterFlashTV-OwnTV/tools/i18n/safe_literals.txt" not in c)
           subprocess.run(["patch", "--batch", "-p1", "--fuzz=0"], input=delta, check=True)
           restored = hashlib.sha256(base.read_bytes()).hexdigest()
           expected_after = "21eab054b8d018d9818f872b9668f7e16559b1e30ec51a78b8044370eccb003b"
